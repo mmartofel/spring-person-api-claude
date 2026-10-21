@@ -9,9 +9,14 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **2.0.0**
+Version: **3.0.0**
 
 ## Changelog
+- **3.0.0** (breaking): `PUT /api/persons/{id}` is a full replacement.
+  - The body needs all required fields plus `version`.
+  - Optional fields sent as `null` (`birthDate`, `gender`) are cleared.
+  - The contract documents responses as `application/json`, marks always-present `PersonResponse` fields as required, and contains no Java-only regex.
+  - The Keycloak login page is available in English and Polish.
 - **2.0.0** (breaking): API is ready for a generated Web UI.
   - Endpoints moved to `/api/persons`.
   - The list endpoint is paged and searchable.
@@ -52,7 +57,7 @@ The list endpoint takes these query parameters:
 - `sort`, e.g. `sort=lastName,desc`. An unknown property returns 400.
 - `q`: case-insensitive search in first name, last name and email.
 
-`PUT` is a partial update: fields left out (or `null`) keep their stored values. It requires the `version` from the last read; if someone changed the record in the meantime, it returns 409.
+`PUT` is a full replacement. The body has the same fields as `POST`, plus the `version` from the last read. Optional fields (`birthDate`, `gender`) sent as `null` or left out are cleared. If someone changed the record in the meantime, it returns 409.
 
 Response fields: `id`, `firstName`, `lastName`, `email`, `birthDate` (ISO date, past), `gender` (`MALE`, `FEMALE`, `OTHER`), `version`.
 
@@ -84,6 +89,13 @@ For the browser UI, the realm also has a public client, `person-ui`:
 - Flow: Authorization Code + PKCE.
 - Redirect URI and web origin: `http://localhost:5173`.
 - Demo users (username/password): `viewer`/`viewer` with role `person-viewer`, `editor`/`editor` with role `person-editor`.
+
+The login page follows the UI language: pass `ui_locales=pl` (or `en`, the default) in the authorization request.
+
+### Applying changes to the Keycloak realm
+Keycloak imports `k8s/realm.json` with `--import-realm`, which **skips a realm that already exists**. Editing the file does not change a running Keycloak:
+- **Docker Compose:** run `docker compose up -d --force-recreate keycloak`. Keycloak in `start-dev` keeps its data inside the container, so the new container imports the realm from scratch. Users and settings added in the Admin Console are lost.
+- **Kubernetes / Skaffold:** Kustomize's `configMapGenerator` adds a content hash to the ConfigMap name. A changed `realm.json` therefore rolls out a new Keycloak pod, which imports the realm again. `skaffold dev` does this on save.
 
 Upgrading a local database from 1.x: 2.0.0 adds a `version` column and a unique email constraint. Recreate the containers with `docker compose down && docker compose up -d`.
 

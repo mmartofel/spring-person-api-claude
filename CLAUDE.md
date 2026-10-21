@@ -65,7 +65,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - List endpoints are paged (`page`, `size`, `sort`, `q`) and return `PagedModel` (`{content, page}`).
 - Method names are the OpenAPI operationIds: `list<Resource>s`, `get<Resource>`, `create<Resource>`, `update<Resource>`, `delete<Resource>`.
 - Endpoints live under `/api`; reads need role `person-viewer` or `person-editor`, writes need `person-editor`.
-- `PUT` is a partial update: null fields keep stored values, and the request must carry the `version` from the last read (409 on mismatch).
+- `PUT` is a full replacement: `*UpdateRequest` has the same constraints as `*CreateRequest` plus a required `version` from the last read (409 on mismatch). Optional fields sent as null are cleared.
+- Validation constraints must translate to JSON Schema/JavaScript (the UI generates Zod schemas from the contract): no Java-only regex syntax such as `(?s)` or possessive quantifiers; prefer `@NotBlank`, `@Size`, `@Email`.
+- Response records mark always-present fields with `@Schema(requiredMode = REQUIRED)`, so the generated TypeScript types are not optional; responses are documented as `application/json` (`springdoc.default-produces-media-type`).
 - After any API change run `mvn verify` and commit the regenerated `contract/openapi.json` (CI fails otherwise).
 
 ## Implementation notes (Spring Boot 4 / Spring Data 4 / springdoc 3)
@@ -74,6 +76,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Annotate `Pageable` parameters with springdoc's `@ParameterObject`, otherwise the contract shows one `pageable` object instead of `page`/`size`/`sort`.
 - The OpenAPI `info.version` comes from Maven `build-info` (`BuildProperties`); never hard-code it.
 - Keycloak realm roles are read from the `realm_access.roles` claim and mapped to `ROLE_<role>` in `SecurityConfig`.
-- The Keycloak realm (`k8s/realm.json`) is shared by Docker Compose and Kubernetes; Keycloak imports it only on the first start, so recreate the container after changing it.
+- The Keycloak realm (`k8s/realm.json`) is shared by Docker Compose and Kubernetes; `--import-realm` skips an existing realm, so after changing it run `docker compose up -d --force-recreate keycloak` (Kubernetes rolls a new pod automatically via the ConfigMap hash). The realm has i18n enabled (`en` default, `pl`); the login page follows `ui_locales`.
+- `@NotBlank` appears in the contract only as `minLength: 1`, so a whitespace-only value passes client-side validation and is rejected by the server with a field error.
 - Run integration tests with Podman by setting `DOCKER_HOST` to the Podman socket and `TESTCONTAINERS_RYUK_DISABLED=true` (see README). Without Docker/Podman they are skipped, and the contract is not regenerated.
 - Ports 5432/8080 may be taken by containers of a sibling project; check `podman ps` before `docker compose up` and never stop containers you did not start.

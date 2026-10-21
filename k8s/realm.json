@@ -1,6 +1,9 @@
 {
   "realm": "person",
   "enabled": true,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "pl"],
+  "defaultLocale": "en",
   "roles": {
     "realm": [
       { "name": "person-viewer", "description": "Read persons" },

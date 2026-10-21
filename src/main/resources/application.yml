@@ -32,5 +32,6 @@ management:
         include: readinessState,db
 
 springdoc:
+  default-produces-media-type: application/json
   writer-with-default-pretty-printer: true
   writer-with-order-by-keys: true

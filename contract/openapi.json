@@ -2,7 +2,7 @@
   "openapi" : "3.1.0",
   "info" : {
     "title" : "Person API",
-    "version" : "2.0.0"
+    "version" : "3.0.0"
   },
   "servers" : [ {
     "url" : "http://localhost",
@@ -54,7 +54,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/PagedModelPersonResponse"
                 }
@@ -83,7 +83,7 @@
         "responses" : {
           "201" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/PersonResponse"
                 }
@@ -134,7 +134,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/PersonResponse"
                 }
@@ -172,7 +172,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/PersonResponse"
                 }
@@ -280,7 +280,8 @@
             "type" : "integer",
             "format" : "int64"
           }
-        }
+        },
+        "required" : [ "email", "firstName", "id", "lastName", "version" ]
       },
       "PersonUpdateRequest" : {
         "type" : "object",
@@ -292,11 +293,11 @@
           "email" : {
             "type" : "string",
             "format" : "email",
-            "pattern" : "(?s).*\\S.*"
+            "minLength" : 1
           },
           "firstName" : {
             "type" : "string",
-            "pattern" : "(?s).*\\S.*"
+            "minLength" : 1
           },
           "gender" : {
             "type" : "string",
@@ -304,14 +305,14 @@
           },
           "lastName" : {
             "type" : "string",
-            "pattern" : "(?s).*\\S.*"
+            "minLength" : 1
           },
           "version" : {
             "type" : "integer",
             "format" : "int64"
           }
         },
-        "required" : [ "version" ]
+        "required" : [ "email", "firstName", "lastName", "version" ]
       }
     },
     "securitySchemes" : {

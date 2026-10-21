@@ -18,10 +18,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import pl.piomin.services.config.SecurityConfig;
+import pl.piomin.services.model.Gender;
 import pl.piomin.services.model.Person;
 import pl.piomin.services.repository.PersonRepository;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,6 +47,8 @@ class PersonControllerTest {
     private static final String URL = "/api/persons";
     private static final String VALID = """
             {"firstName":"John","lastName":"Smith","email":"john@example.com","birthDate":"1990-01-01","gender":"MALE"}""";
+    private static final String UPDATE = """
+            {"firstName":"John","lastName":"Smith","email":"john@example.com","version":0}""";
     private static final String INVALID = """
             {"firstName":"","lastName":"Smith","email":"not-an-email"}""";
 
@@ -149,21 +153,36 @@ class PersonControllerTest {
     }
 
     @Test
-    void updatePersonKeepsFieldsNotSent() throws Exception {
+    void updatePersonReplacesRecord() throws Exception {
+        Person stored = person(1L);
+        stored.setBirthDate(LocalDate.of(1990, 1, 1));
+        stored.setGender(Gender.MALE);
+        stored(stored);
+        mvc.perform(put(URL + "/1").with(editor()).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"firstName":"Jane","lastName":"Doe","email":"jane@example.com","version":0}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.firstName").value("Jane"))
+                .andExpect(jsonPath("$.lastName").value("Doe"))
+                .andExpect(jsonPath("$.email").value("jane@example.com"))
+                .andExpect(jsonPath("$.birthDate").isEmpty())
+                .andExpect(jsonPath("$.gender").isEmpty());
+    }
+
+    @Test
+    void updatePersonMissingRequiredField() throws Exception {
         stored(person(1L));
         mvc.perform(put(URL + "/1").with(editor()).contentType(MediaType.APPLICATION_JSON).content("""
-                        {"lastName":"Doe","version":0}"""))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.firstName").value("John"))
-                .andExpect(jsonPath("$.lastName").value("Doe"))
-                .andExpect(jsonPath("$.email").value("john@example.com"));
+                        {"lastName":"Doe","email":"john@example.com","version":0}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("firstName"));
+        verify(repository, never()).save(any());
     }
 
     @Test
     void updatePersonBlankField() throws Exception {
         stored(person(1L));
         mvc.perform(put(URL + "/1").with(editor()).contentType(MediaType.APPLICATION_JSON).content("""
-                        {"firstName":" ","version":0}"""))
+                        {"firstName":" ","lastName":"Doe","email":"john@example.com","version":0}"""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("firstName"));
         verify(repository, never()).save(any());
@@ -172,8 +191,7 @@ class PersonControllerTest {
     @Test
     void updatePersonWithoutVersion() throws Exception {
         stored(person(1L));
-        mvc.perform(put(URL + "/1").with(editor()).contentType(MediaType.APPLICATION_JSON).content("""
-                        {"lastName":"Doe"}"""))
+        mvc.perform(put(URL + "/1").with(editor()).contentType(MediaType.APPLICATION_JSON).content(VALID))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("version"));
         verify(repository, never()).save(any());
@@ -183,7 +201,7 @@ class PersonControllerTest {
     void updatePersonStaleVersion() throws Exception {
         stored(person(1L));
         mvc.perform(put(URL + "/1").with(editor()).contentType(MediaType.APPLICATION_JSON).content("""
-                        {"lastName":"Doe","version":5}"""))
+                        {"firstName":"John","lastName":"Smith","email":"john@example.com","version":5}"""))
                 .andExpect(status().isConflict());
         verify(repository, never()).save(any());
     }
@@ -191,8 +209,7 @@ class PersonControllerTest {
     @Test
     void updatePersonNotFound() throws Exception {
         when(repository.findById(99L)).thenReturn(Optional.empty());
-        mvc.perform(put(URL + "/99").with(editor()).contentType(MediaType.APPLICATION_JSON).content("""
-                        {"lastName":"Doe","version":0}"""))
+        mvc.perform(put(URL + "/99").with(editor()).contentType(MediaType.APPLICATION_JSON).content(UPDATE))
                 .andExpect(status().isNotFound());
         verify(repository, never()).save(any());
     }

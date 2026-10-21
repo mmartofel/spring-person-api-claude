@@ -35,12 +35,12 @@ public class Person {
     @Version
     private Long version;
 
-    public void updateFrom(PersonUpdateRequest source) {
-        if (source.firstName() != null) firstName = source.firstName();
-        if (source.lastName() != null) lastName = source.lastName();
-        if (source.email() != null) email = source.email();
-        if (source.birthDate() != null) birthDate = source.birthDate();
-        if (source.gender() != null) gender = source.gender();
+    public void replaceWith(PersonUpdateRequest source) {
+        firstName = source.firstName();
+        lastName = source.lastName();
+        email = source.email();
+        birthDate = source.birthDate();
+        gender = source.gender();
     }
 
     public Long getId() {

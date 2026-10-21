@@ -65,7 +65,7 @@ public class PersonController {
         if (!request.version().equals(person.getVersion())) {
             throw new ObjectOptimisticLockingFailureException(Person.class, id);
         }
-        person.updateFrom(request);
+        person.replaceWith(request);
         return PersonResponse.from(repository.save(person));
     }
 

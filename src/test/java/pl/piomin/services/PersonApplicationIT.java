@@ -18,6 +18,7 @@ import pl.piomin.services.config.SecurityConfig;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -47,7 +48,7 @@ class PersonApplicationIT {
     private String create(String firstName, String lastName, String email) throws Exception {
         String body = mvc.perform(post(URL).with(editor()).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"firstName":"%s","lastName":"%s","email":"%s","gender":"FEMALE"}"""
+                                {"firstName":"%s","lastName":"%s","email":"%s","birthDate":"1990-05-01","gender":"FEMALE"}"""
                                 .formatted(firstName, lastName, email)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
@@ -55,24 +56,27 @@ class PersonApplicationIT {
     }
 
     @Test
-    void createUpdateDelete() throws Exception {
+    void createReplaceDelete() throws Exception {
         String id = create("Anna", "Nowak", "anna@example.com");
 
         mvc.perform(get(URL + "/" + id).with(editor()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.lastName").value("Nowak"))
+                .andExpect(jsonPath("$.birthDate").value("1990-05-01"))
                 .andExpect(jsonPath("$.version").value(0));
         mvc.perform(put(URL + "/" + id).with(editor()).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"lastName":"Kowalska","version":0}"""))
+                                {"firstName":"Anna","lastName":"Kowalska","email":"anna@example.com",
+                                 "birthDate":null,"gender":"FEMALE","version":0}"""))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.firstName").value("Anna"))
-                .andExpect(jsonPath("$.lastName").value("Kowalska"))
-                .andExpect(jsonPath("$.gender").value("FEMALE"))
                 .andExpect(jsonPath("$.version").value(1));
+        mvc.perform(get(URL + "/" + id).with(editor()))
+                .andExpect(jsonPath("$.lastName").value("Kowalska"))
+                .andExpect(jsonPath("$.birthDate").isEmpty())
+                .andExpect(jsonPath("$.gender").value("FEMALE"));
         mvc.perform(put(URL + "/" + id).with(editor()).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"lastName":"Stale","version":0}"""))
+                                {"firstName":"Anna","lastName":"Stale","email":"anna@example.com","version":0}"""))
                 .andExpect(status().isConflict());
         mvc.perform(delete(URL + "/" + id).with(editor())).andExpect(status().isNoContent());
         mvc.perform(get(URL + "/" + id).with(editor())).andExpect(status().isNotFound());
@@ -119,6 +123,10 @@ class PersonApplicationIT {
         String spec = mvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/persons'].get.operationId").value("listPersons"))
+                .andExpect(jsonPath("$.paths['/api/persons/{id}'].get.responses['200'].content['application/json']").exists())
+                .andExpect(jsonPath("$.components.schemas.PersonResponse.required",
+                        containsInAnyOrder("id", "firstName", "lastName", "email", "version")))
+                .andExpect(jsonPath("$..pattern").isEmpty())
                 .andReturn().getResponse().getContentAsString();
         Path file = Path.of("contract/openapi.json");
         Files.createDirectories(file.getParent());

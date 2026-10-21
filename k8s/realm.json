@@ -1,6 +1,12 @@
 {
   "realm": "person",
   "enabled": true,
+  "roles": {
+    "realm": [
+      { "name": "person-viewer", "description": "Read persons" },
+      { "name": "person-editor", "description": "Read, create, update and delete persons" }
+    ]
+  },
   "clients": [
     {
       "clientId": "person-api",
@@ -10,6 +16,47 @@
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false
+    },
+    {
+      "clientId": "person-ui",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-person-api",
+      "enabled": true,
+      "serviceAccountClientId": "person-api",
+      "realmRoles": ["person-editor"]
+    },
+    {
+      "username": "viewer",
+      "enabled": true,
+      "email": "viewer@example.com",
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Viewer",
+      "credentials": [{ "type": "password", "value": "viewer", "temporary": false }],
+      "realmRoles": ["person-viewer"]
+    },
+    {
+      "username": "editor",
+      "enabled": true,
+      "email": "editor@example.com",
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Editor",
+      "credentials": [{ "type": "password", "value": "editor", "temporary": false }],
+      "realmRoles": ["person-editor"]
     }
   ]
 }

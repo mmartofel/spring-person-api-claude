@@ -1,9 +1,14 @@
 package pl.piomin.services.controller;
 
-import jakarta.validation.ConstraintViolation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import jakarta.validation.Validator;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,65 +16,70 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import pl.piomin.services.dto.PersonCreateRequest;
+import pl.piomin.services.dto.PersonResponse;
+import pl.piomin.services.dto.PersonUpdateRequest;
 import pl.piomin.services.model.Person;
 import pl.piomin.services.repository.PersonRepository;
 
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 @RestController
-@RequestMapping("/persons")
+@RequestMapping("/api/persons")
+@Tag(name = "Persons")
+@SecurityRequirement(name = "bearer")
 public class PersonController {
 
     private final PersonRepository repository;
-    private final Validator validator;
 
-    public PersonController(PersonRepository repository, Validator validator) {
+    public PersonController(PersonRepository repository) {
         this.repository = repository;
-        this.validator = validator;
     }
 
     @GetMapping
-    public List<Person> findAll() {
-        return repository.findAll();
+    public PagedModel<PersonResponse> listPersons(@RequestParam(required = false) String q,
+                                              @ParameterObject Pageable pageable) {
+        Page<Person> page = q == null || q.isBlank()
+                ? repository.findAll(pageable)
+                : repository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+                        q, q, q, pageable);
+        return new PagedModel<>(page.map(PersonResponse::from));
     }
 
     @GetMapping("/{id}")
-    public Person findById(@PathVariable Long id) {
-        return repository.findById(id).orElseThrow(() -> notFound(id));
+    public PersonResponse getPerson(@PathVariable Long id) {
+        return PersonResponse.from(find(id));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Person create(@Valid @RequestBody Person person) {
-        person.setId(null);
-        return repository.save(person);
+    public PersonResponse createPerson(@Valid @RequestBody PersonCreateRequest request) {
+        return PersonResponse.from(repository.save(request.toEntity()));
     }
 
     @PutMapping("/{id}")
-    public Person update(@PathVariable Long id, @RequestBody Person changes) {
-        Person person = findById(id);
-        person.updateFrom(changes);
-        Set<ConstraintViolation<Person>> violations = validator.validate(person);
-        if (!violations.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, violations.stream()
-                    .map(v -> v.getPropertyPath() + " " + v.getMessage())
-                    .collect(Collectors.joining(", ")));
+    public PersonResponse updatePerson(@PathVariable Long id, @Valid @RequestBody PersonUpdateRequest request) {
+        Person person = find(id);
+        if (!request.version().equals(person.getVersion())) {
+            throw new ObjectOptimisticLockingFailureException(Person.class, id);
         }
-        return repository.save(person);
+        person.updateFrom(request);
+        return PersonResponse.from(repository.save(person));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    public void deletePerson(@PathVariable Long id) {
         if (!repository.existsById(id)) {
             throw notFound(id);
         }
         repository.deleteById(id);
+    }
+
+    private Person find(Long id) {
+        return repository.findById(id).orElseThrow(() -> notFound(id));
     }
 
     private static ResponseStatusException notFound(Long id) {

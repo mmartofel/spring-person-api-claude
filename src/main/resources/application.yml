@@ -12,6 +12,10 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+  data:
+    web:
+      pageable:
+        max-page-size: 100
   security:
     oauth2:
       resourceserver:
@@ -26,3 +30,7 @@ management:
     group:
       readiness:
         include: readinessState,db
+
+springdoc:
+  writer-with-default-pretty-printer: true
+  writer-with-order-by-keys: true

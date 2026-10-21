@@ -16,6 +16,9 @@ jobs:
       - run:
           name: Build and test
           command: mvn -B verify
+      - run:
+          name: Check the OpenAPI contract is committed
+          command: git status --porcelain contract/ && test -z "$(git status --porcelain contract/)"
       - save_cache:
           key: maven-{{ checksum "pom.xml" }}
           paths:

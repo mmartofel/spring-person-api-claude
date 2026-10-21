@@ -1,0 +1,325 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Person API",
+    "version" : "2.0.0"
+  },
+  "servers" : [ {
+    "url" : "http://localhost",
+    "description" : "Generated server url"
+  } ],
+  "paths" : {
+    "/api/persons" : {
+      "get" : {
+        "operationId" : "listPersons",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page index (0..N)",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "default" : 0,
+            "minimum" : 0
+          }
+        }, {
+          "description" : "The size of the page to be returned",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "default" : 20,
+            "minimum" : 1
+          }
+        }, {
+          "description" : "Sorting criteria in the format: property,(asc|desc). Default sort order is ascending. Multiple sort criteria are supported.",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PagedModelPersonResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "security" : [ {
+          "bearer" : [ ]
+        } ],
+        "tags" : [ "Persons" ]
+      },
+      "post" : {
+        "operationId" : "createPerson",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PersonCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "security" : [ {
+          "bearer" : [ ]
+        } ],
+        "tags" : [ "Persons" ]
+      }
+    },
+    "/api/persons/{id}" : {
+      "delete" : {
+        "operationId" : "deletePerson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "security" : [ {
+          "bearer" : [ ]
+        } ],
+        "tags" : [ "Persons" ]
+      },
+      "get" : {
+        "operationId" : "getPerson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "security" : [ {
+          "bearer" : [ ]
+        } ],
+        "tags" : [ "Persons" ]
+      },
+      "put" : {
+        "operationId" : "updatePerson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PersonUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "security" : [ {
+          "bearer" : [ ]
+        } ],
+        "tags" : [ "Persons" ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "PageMetadata" : {
+        "type" : "object",
+        "properties" : {
+          "number" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "PagedModelPersonResponse" : {
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonResponse"
+            }
+          },
+          "page" : {
+            "$ref" : "#/components/schemas/PageMetadata"
+          }
+        }
+      },
+      "PersonCreateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "birthDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "email" : {
+            "type" : "string",
+            "format" : "email",
+            "minLength" : 1
+          },
+          "firstName" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "gender" : {
+            "type" : "string",
+            "enum" : [ "MALE", "FEMALE", "OTHER" ]
+          },
+          "lastName" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "email", "firstName", "lastName" ]
+      },
+      "PersonResponse" : {
+        "type" : "object",
+        "properties" : {
+          "birthDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "firstName" : {
+            "type" : "string"
+          },
+          "gender" : {
+            "type" : "string",
+            "enum" : [ "MALE", "FEMALE", "OTHER" ]
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "lastName" : {
+            "type" : "string"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "PersonUpdateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "birthDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "email" : {
+            "type" : "string",
+            "format" : "email",
+            "pattern" : "(?s).*\\S.*"
+          },
+          "firstName" : {
+            "type" : "string",
+            "pattern" : "(?s).*\\S.*"
+          },
+          "gender" : {
+            "type" : "string",
+            "enum" : [ "MALE", "FEMALE", "OTHER" ]
+          },
+          "lastName" : {
+            "type" : "string",
+            "pattern" : "(?s).*\\S.*"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "version" ]
+      }
+    },
+    "securitySchemes" : {
+      "bearer" : {
+        "bearerFormat" : "JWT",
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: spring-person-api
+build:
+  artifacts:
+    - image: spring-person-api
+      jib: {}
+manifests:
+  kustomize:
+    paths:
+      - k8s
+deploy:
+  kubectl: {}
+portForward:
+  - resourceType: service
+    resourceName: spring-person-api
+    port: 8080
+    localPort: 8081
+  - resourceType: service
+    resourceName: keycloak
+    port: 8080
+    localPort: 8080

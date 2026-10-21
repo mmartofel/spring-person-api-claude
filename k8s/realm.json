@@ -1,0 +1,15 @@
+{
+  "realm": "person",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "person-api",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "person-api-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    }
+  ]
+}

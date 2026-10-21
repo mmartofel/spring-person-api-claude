@@ -1,0 +1,28 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: spring-person-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/persons}
+    username: ${SPRING_DATASOURCE_USERNAME:persons}
+    password: ${SPRING_DATASOURCE_PASSWORD:persons}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWK_SET_URI:http://localhost:8080/realms/person/protocol/openid-connect/certs}
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+    group:
+      readiness:
+        include: readinessState,db

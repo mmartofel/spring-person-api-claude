@@ -1,4 +1,13 @@
-# spring-person-api
+# Example Person API vibe coded with Spring Boot 4, Keycloak, PostgreSQL, and Kubernetes
+
+This is a simple REST API for managing `Person` records, with OAuth2 JWT authentication via Keycloak. It uses Spring Boot 4, PostgreSQL, and can be deployed to Kubernetes using Skaffold.
+Purpose is to demonstrate a modern Java stack with Spring Boot 4, Keycloak, PostgreSQL, and Kubernetes deployment.
+
+Spring Boot Plugin for Claude Code has been used to vibe code in this project. You can find the plugin here:
+
+https://github.com/piomin/claude-ai-spring-boot
+
+Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
 Version: **1.0.1**
 

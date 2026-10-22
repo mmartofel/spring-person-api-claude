@@ -76,6 +76,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Do not put `@EnableSpringDataWebSupport` on the application class: `@WebMvcTest` registers it twice and fails. Controllers return `PagedModel` explicitly instead.
 - Any `@ApiResponse` on a controller method (also via a meta-annotation) stops springdoc 3 from generating the success response; that is why error responses are added by an `OpenApiCustomizer`.
 - Schemas registered manually must use `ModelConverters.getInstance(true)` (OpenAPI 3.1); the default instance omits `"type": "object"`.
+- Error codes come from `FieldError#getCode()` (the constraint's simple name, e.g. `NotBlank`) mapped in `ApiExceptionHandler#code`. The `Problem` record exists only to document the error body; keep it in sync with what the handler returns.
 - `exportOpenApiContract` writes the contract first and asserts afterwards, so a failing assertion still leaves the generated file to inspect.
 - Annotate `Pageable` parameters with springdoc's `@ParameterObject`, otherwise the contract shows one `pageable` object instead of `page`/`size`/`sort`.
 - The OpenAPI `info.version` comes from Maven `build-info` (`BuildProperties`); never hard-code it.
@@ -83,4 +84,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - The Keycloak realm (`k8s/realm.json`) is shared by Docker Compose and Kubernetes; `--import-realm` skips an existing realm, so after changing it run `docker compose up -d --force-recreate keycloak` (Kubernetes rolls a new pod automatically via the ConfigMap hash). The realm has i18n enabled (`en` default, `pl`); the login page follows `ui_locales`.
 - `@NotBlank` appears in the contract only as `minLength: 1`, so a whitespace-only value passes client-side validation and is rejected by the server with a field error.
 - Run integration tests with Podman by setting `DOCKER_HOST` to the Podman socket and `TESTCONTAINERS_RYUK_DISABLED=true` (see README). Without Docker/Podman they are skipped, and the contract is not regenerated.
-- Ports 5432/8080 may be taken by containers of a sibling project; check `podman ps` before `docker compose up` and never stop containers you did not start.
+- Ports 5432/8080 may be taken by containers of a sibling project (`spring-person-api-*`); check `podman ps` before `docker compose up`. Stop them only when the user asks, and then with `podman stop` (not `compose down`), so their data survives.
+
+## Workflow
+- Commit only when asked, and push only when asked; "commit" alone does not mean push.
+- Before committing, scan changed files for Polish text (all files must be in English).
+- After a push, check CI: `gh api repos/mmartofel/spring-person-api-claude/commits/<sha>/status` (context `ci/circleci: build`; logs at the `target_url`).
+- After a version bump, rebuild and restart the locally running API (`java -jar target/spring-person-api-<version>.jar`), and recreate Keycloak if `k8s/realm.json` changed.

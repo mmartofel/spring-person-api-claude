@@ -136,4 +136,4 @@ TESTCONTAINERS_RYUK_DISABLED=true mvn verify
 ```
 The local stack also runs with `podman compose up -d`.
 
-The integration tests are skipped automatically when Docker is not available. CircleCI (`.circleci/config.yml`) runs `mvn verify` on a machine executor with Docker, then checks that `contract/openapi.json` is committed.
+The integration tests are skipped automatically when Docker is not available. CircleCI (`.circleci/config.yml`) runs `mvn verify` on a machine executor with Docker, then checks that `contract/openapi.json` is committed. The result appears on GitHub next to each commit (✓ or ✗); **Details** opens the CircleCI log.

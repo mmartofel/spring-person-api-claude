@@ -310,6 +310,27 @@ class PersonApplicationIT {
     }
 
     @Test
+    void taskAssigneeChanges() throws Exception {
+        String first = create("First", "Owner", "first-owner@example.com");
+        String second = create("Second", "Owner", "second-owner@example.com");
+        String id = createTask("""
+                {"title":"Reassigned task"}""");
+
+        for (String[] step : new String[][]{{first, "0", "First Owner"}, {second, "1", "Second Owner"}}) {
+            mvc.perform(put(TASKS + "/" + id).with(editor()).contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"title":"Reassigned task","assigneeId":%s,"version":%s}""".formatted(step[0], step[1])))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.assignee.id").value(Integer.parseInt(step[0])))
+                    .andExpect(jsonPath("$.assignee.label").value(step[2]))
+                    .andExpect(jsonPath("$.version").value(Integer.parseInt(step[1]) + 1));
+        }
+        mvc.perform(get(TASKS + "/" + id).with(editor()))
+                .andExpect(jsonPath("$.assignee.label").value("Second Owner"))
+                .andExpect(jsonPath("$.version").value(2));
+    }
+
+    @Test
     void taskFilters() throws Exception {
         String alice = create("Alice", "Filter", "alice-filter@example.com");
         String bob = create("Bob", "Filter", "bob-filter@example.com");

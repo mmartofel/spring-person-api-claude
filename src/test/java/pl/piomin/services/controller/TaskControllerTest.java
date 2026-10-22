@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -101,7 +103,7 @@ class TaskControllerTest {
 
     private void stored(Task t) {
         when(repository.findById(t.getId())).thenReturn(Optional.of(t));
-        saveReturnsArgument();
+        when(repository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
@@ -307,7 +309,7 @@ class TaskControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("assigneeId"))
                 .andExpect(jsonPath("$.errors[0].code").value("not-found"));
-        verify(repository, never()).save(any());
+        verify(repository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -317,7 +319,7 @@ class TaskControllerTest {
                         "estimateHours":1.3""")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("estimateHours"));
-        verify(repository, never()).save(any());
+        verify(repository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -327,7 +329,7 @@ class TaskControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("version"))
                 .andExpect(jsonPath("$.errors[0].code").value("required"));
-        verify(repository, never()).save(any());
+        verify(repository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -336,7 +338,18 @@ class TaskControllerTest {
         mvc.perform(put(URL + "/1").with(editor()).contentType(MediaType.APPLICATION_JSON).content("""
                         {"title":"Write report","version":5}"""))
                 .andExpect(status().isConflict());
-        verify(repository, never()).save(any());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void unexpectedErrorIsProblemDetail() throws Exception {
+        when(repository.findById(1L)).thenThrow(new IllegalStateException("internal secret"));
+        mvc.perform(get(URL + "/1").with(editor()))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.detail").value("Unexpected server error"))
+                .andExpect(content().string(not(containsString("secret"))));
     }
 
     @Test
@@ -344,7 +357,7 @@ class TaskControllerTest {
         when(repository.findById(99L)).thenReturn(Optional.empty());
         mvc.perform(put(URL + "/99").with(editor()).contentType(MediaType.APPLICATION_JSON).content(UPDATE))
                 .andExpect(status().isNotFound());
-        verify(repository, never()).save(any());
+        verify(repository, never()).saveAndFlush(any());
     }
 
     @Test

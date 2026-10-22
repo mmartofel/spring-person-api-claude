@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -54,11 +55,14 @@ public class TaskController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Transactional
     public TaskResponse createTask(@Valid @RequestBody TaskCreateRequest request) {
         return TaskResponse.from(repository.save(request.toEntity(assignee(request.assigneeId()))));
     }
 
+    /** Transactional, so the assignee is still loaded when mapped; flushed, so version and updatedAt are current. */
     @PutMapping("/{id}")
+    @Transactional
     public TaskResponse updateTask(@PathVariable Long id, @Valid @RequestBody TaskUpdateRequest request) {
         Task task = find(id);
         Person assignee = assignee(request.assigneeId());
@@ -66,11 +70,12 @@ public class TaskController {
             throw new ObjectOptimisticLockingFailureException(Task.class, id);
         }
         task.replaceWith(request, assignee);
-        return TaskResponse.from(repository.save(task));
+        return TaskResponse.from(repository.saveAndFlush(task));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
     public void deleteTask(@PathVariable Long id) {
         if (!repository.existsById(id)) {
             throw notFound(id);

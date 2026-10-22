@@ -112,4 +112,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     ProblemDetail handleBadSort(PropertyReferenceException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
+
+    /** 500 for anything not handled above; the cause is logged, not exposed. */
+    @ExceptionHandler
+    ProblemDetail handleUnexpected(Exception ex) {
+        logger.error("Unexpected error", ex);
+        return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error");
+    }
 }

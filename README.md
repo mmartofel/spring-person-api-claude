@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.4.0**
+Version: **3.4.1**
 
 ## Changelog
+- **3.4.1**: Fix: `PUT /api/tasks/{id}` with a new `assigneeId` saved the change but returned 500. Task writes now run in a transaction. Unexpected errors return Problem Details (500) instead of Spring's default error body. The contract is unchanged.
 - **3.4.0**: New `Task` resource at `/api/tasks` with an optional assignee (a person).
   - Requests reference the assignee as `assigneeId`. Responses embed `assignee: {id, label}`.
   - An unknown `assigneeId` returns 400 with code `not-found`.
@@ -147,6 +148,7 @@ Which error responses each endpoint can return:
 - 404 on every `/{id}` path.
 - 409 on `POST` and `PUT`: a duplicate email has `errors`, a stale `version` has none.
 - 409 on `DELETE /api/persons/{id}` while the person has tasks (`in-use`).
+- 500 on an unexpected server error, as Problem Details with a generic `detail` (the cause is only logged). It is not listed in the contract.
 
 ### OpenAPI contract
 The contract for the Web UI is committed in `contract/openapi.json`. `mvn clean verify` regenerates it (in `PersonApplicationIT`), and CI fails if the committed file is out of date. While the app runs, Swagger UI is at http://localhost:8081/swagger-ui.html: click **Authorize** and paste a token.
@@ -206,6 +208,8 @@ The Keycloak realm is defined once, in `k8s/realm.json`, and used by both Docker
 mvn test                                      # unit tests (MockMvc)
 mvn clean verify                              # plus Testcontainers integration tests (needs Docker)
 mvn test -Dtest=PersonControllerTest#createPersonInvalid   # single test
+mvn clean verify -Dtest=NoUnitTests -Dsurefire.failIfNoSpecifiedTests=false \
+  -Dit.test=PersonApplicationIT#taskAssigneeChanges        # single integration test
 ```
 With Podman instead of Docker, point Testcontainers at the Podman socket:
 ```shell

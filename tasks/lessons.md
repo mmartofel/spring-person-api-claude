@@ -24,3 +24,7 @@ Patterns learned from user corrections. Review at session start; add a rule afte
 ## Build from clean before trusting a green result
 - **Mistake:** Added a test helper with the same signature as an existing one. The build looked fine because classes compiled by the IDE (Eclipse compiler) were already in `target`, so the duplicate surfaced only later.
 - **Rule:** Verify with `mvn clean verify`. After a scripted edit (sed, perl, Python), check that it actually changed the file (`git diff --stat`) before building.
+
+## Test every transition of a relation against the real database
+- **Mistake:** `PUT /api/tasks/{id}` loaded the task outside a transaction (`open-in-view` is off), so `save` merged a detached entity and the new assignee became an uninitialized proxy. Mapping the response threw `LazyInitializationException`, and the client got 500 with Spring's default body. Tests covered setting an assignee on create and clearing it on update, never changing it, and the mocked unit tests cannot see JPA proxies.
+- **Rule:** Write endpoints that map a relation run in `@Transactional` (`saveAndFlush` on update). Integration tests cover none → A, A → B and A → none. A catch-all handler keeps unexpected errors in Problem Details.

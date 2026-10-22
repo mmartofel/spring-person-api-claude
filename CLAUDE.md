@@ -90,4 +90,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Commit only when asked, and push only when asked; "commit" alone does not mean push.
 - Before committing, scan changed files for Polish text (all files must be in English).
 - After a push, check CI: `gh api repos/mmartofel/spring-person-api-claude/commits/<sha>/status` (context `ci/circleci: build`; logs at the `target_url`).
+  - Fallback when `gh` returns 404 for this repo (seen with a stale `gh` token; fix with `gh auth refresh -h github.com -s repo`): the repo is public, so use the unauthenticated API: `curl -s https://api.github.com/repos/mmartofel/spring-person-api-claude/commits/<sha>/status | jq -r '.statuses[0] | "\(.state) \(.target_url)"'`.
+  - The unauthenticated API allows 60 requests per hour, so poll every 30 s or slower.
 - After a version bump, rebuild and restart the locally running API (`java -jar target/spring-person-api-<version>.jar`), and recreate Keycloak if `k8s/realm.json` changed.

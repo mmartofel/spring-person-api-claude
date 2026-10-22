@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.2.0**
+Version: **3.3.0**
 
 ## Changelog
+- **3.3.0**: A person has an optional `address` (`street`, `postalCode`, `city`, `countryCode`), a `status` (`AVAILABLE` by default, `UNAVAILABLE`) and an optional availability window (`availableFrom`, `availableTo`). A reversed window returns the error code `date-range`. The list endpoint filters by `status`, `availableOn` and `countryCode`, and documents its 400 response. Existing rows get `status` `AVAILABLE` (migration `V2`).
 - **3.2.0**: Flyway migrations own the database schema; Hibernate only validates it. Databases created by Hibernate before 3.2.0 must be recreated (see [Database migrations](#database-migrations)). The API is unchanged.
 - **3.1.1**: The contract marks `status` and `title` of `Problem` as required (Spring always sets them).
 - **3.1.0**: Each item in a Problem Details `errors[]` has a stable `code` (`required`, `email`, `past`, `unique`, `invalid`) that the UI can translate. The contract documents the error responses (`Problem` and `FieldError` schemas, `application/problem+json`).
@@ -49,7 +50,7 @@ All `/api/**` endpoints require `Authorization: Bearer <token>`. Reads need real
 
 | Method | Path                | Result                                                       |
 |--------|---------------------|--------------------------------------------------------------|
-| GET    | `/api/persons`      | 200, page `{content, page:{size, number, totalElements, totalPages}}` |
+| GET    | `/api/persons`      | 200, page `{content, page:{size, number, totalElements, totalPages}}`; 400 on an invalid filter or sort |
 | GET    | `/api/persons/{id}` | 200, or 404                                                  |
 | POST   | `/api/persons`      | 201, 400 on invalid body, 409 if the email is taken          |
 | PUT    | `/api/persons/{id}` | 200, 400, 404, or 409 (email taken or stale `version`)       |
@@ -59,10 +60,26 @@ The list endpoint takes these query parameters:
 - `page` (from 0) and `size` (default 20, max 100).
 - `sort`, e.g. `sort=lastName,desc`. An unknown property returns 400.
 - `q`: case-insensitive search in first name, last name and email.
+- `status`: `AVAILABLE` or `UNAVAILABLE`.
+- `availableOn` (ISO date): persons with status `AVAILABLE` whose availability window contains the date. A missing `availableFrom` or `availableTo` means no limit on that side.
+- `countryCode`: the address country, e.g. `PL`.
 
-`PUT` is a full replacement. The body has the same fields as `POST`, plus the `version` from the last read. Optional fields (`birthDate`, `gender`) sent as `null` or left out are cleared. If someone changed the record in the meantime, it returns 409.
+Filters combine with AND. An invalid value (unknown status, malformed date, lowercase country code) returns 400 with the parameter in `errors`.
 
-Response fields: `id`, `firstName`, `lastName`, `email`, `birthDate` (ISO date, past), `gender` (`MALE`, `FEMALE`, `OTHER`), `version`.
+`PUT` is a full replacement. The body has the same fields as `POST`, plus the `version` from the last read. Optional fields (`birthDate`, `gender`, `address`, `availableFrom`, `availableTo`) sent as `null` or left out are cleared, and a missing `status` becomes `AVAILABLE`. If someone changed the record in the meantime, it returns 409.
+
+Fields:
+
+| Field | Type and rules |
+|-------|----------------|
+| `id`, `version` | Read-only (`version` is required in `PUT`) |
+| `firstName`, `lastName` | Required, not blank |
+| `email` | Required, well-formed, unique |
+| `birthDate` | Optional ISO date in the past |
+| `gender` | Optional: `MALE`, `FEMALE`, `OTHER` |
+| `address` | Optional object, every part optional: `street` (max 120), `postalCode` (max 16, free text), `city` (max 80), `countryCode` (ISO 3166-1 alpha-2, `^[A-Z]{2}$`). An address with all parts empty is returned as `null`. |
+| `status` | `AVAILABLE` or `UNAVAILABLE`; defaults to `AVAILABLE` when not sent; always present in responses |
+| `availableFrom`, `availableTo` | Optional ISO dates: the window in which the person can be booked. An empty end means no limit; `availableFrom` must not be after `availableTo`. |
 
 Errors are [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) (`application/problem+json`, schema `Problem` in the contract). Validation and unique-email errors list the affected fields in `errors`:
 ```json
@@ -77,10 +94,12 @@ Errors are [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) (`
 | `email`    | Not a well-formed email address                 | `@Email`                   |
 | `past`     | The date must be in the past                    | `@Past`                    |
 | `unique`   | The value is already used by another person (409) | unique email constraint  |
-| `invalid`  | Any other constraint                            | other Bean Validation constraints |
+| `date-range` | `availableTo` is before `availableFrom` (reported on `availableTo`) | `@DateRange` |
+| `invalid`  | Any other constraint, e.g. too long, wrong country code, malformed filter value | `@Size`, `@Pattern`, type conversion and other constraints |
 
 Which error responses each endpoint can return:
-- 400 on `POST` and `PUT`.
+- 400 on `POST` and `PUT`, and on the list endpoint (invalid filter or sort).
+- Nested fields are reported with a path, e.g. `address.countryCode`.
 - 404 on every `/{id}` path.
 - 409 on `POST` and `PUT`: a duplicate email has `errors`, a stale `version` has none.
 
@@ -96,9 +115,11 @@ TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=person-api -d clie
   http://localhost:8080/realms/person/protocol/openid-connect/token | jq -r .access_token)
 
 curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"firstName":"John","lastName":"Smith","email":"john@example.com","gender":"MALE"}' \
+  -d '{"firstName":"John","lastName":"Smith","email":"john@example.com","gender":"MALE",
+       "address":{"city":"Warsaw","countryCode":"PL"},"availableFrom":"2026-11-01","availableTo":"2026-11-30"}' \
   http://localhost:8081/api/persons
 curl -H "Authorization: Bearer $TOKEN" "http://localhost:8081/api/persons?q=smi&sort=lastName"
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:8081/api/persons?availableOn=2026-11-15&countryCode=PL"
 ```
 The `person-api` service account has the `person-editor` role.
 

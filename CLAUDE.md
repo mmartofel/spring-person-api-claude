@@ -61,9 +61,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## API contract (consumed by the Web UI)
 - Controllers never expose entities: use `*Response`, `*CreateRequest`, `*UpdateRequest` records.
-- Errors are RFC 9457 Problem Details; validation and unique-constraint errors add `errors: [{field, code, message}]` (see `ApiExceptionHandler`). `code` is a stable, documented enum the UI translates (`required`, `email`, `past`, `unique`, `invalid`); `message` is an English fallback. A new constraint or code must be added to the mapping, the `FieldError` schema enum, the README table and the tests.
-- Error responses are documented by convention in `OpenApiConfig#problemResponses` (400/409 on POST/PUT, 404 on `{id}` paths, `application/problem+json`, schema `Problem`). Keep new endpoints consistent with it instead of annotating them.
+- Errors are RFC 9457 Problem Details; validation and unique-constraint errors add `errors: [{field, code, message}]` (see `ApiExceptionHandler`). `code` is a stable, documented enum the UI translates (`required`, `email`, `past`, `unique`, `invalid`, `date-range`); `message` is an English fallback. A new constraint or code must be added to the mapping, the `FieldError` schema enum, the README table and the tests.
+- Cross-field rules are class-level constraints that report the error on one field, so the UI can show it next to an input: `@DateRange` (on the `AvailabilityWindow` interface) reports `availableTo` with code `date-range`.
+- Error responses are documented by convention in `OpenApiConfig#problemResponses` (400/409 on POST/PUT, 400 on list GETs, 404 on `{id}` paths, `application/problem+json`, schema `Problem`). Keep new endpoints consistent with it instead of annotating them.
 - List endpoints are paged (`page`, `size`, `sort`, `q`) and return `PagedModel` (`{content, page}`).
+- List filters are optional, named query parameters next to `q`, `page`, `size` and `sort` (e.g. `status`, `availableOn`, `countryCode`), never a generic filter expression. They are bound to a `<Resource>Filter` record (`@ParameterObject @Valid`, with `@Parameter(description)` per component) that builds a JPA `Specification`; filters combine with AND, and an invalid value returns 400 with `errors` (field = parameter name).
 - Method names are the OpenAPI operationIds: `list<Resource>s`, `get<Resource>`, `create<Resource>`, `update<Resource>`, `delete<Resource>`.
 - Endpoints live under `/api`; reads need role `person-viewer` or `person-editor`, writes need `person-editor`.
 - `PUT` is a full replacement: `*UpdateRequest` has the same constraints as `*CreateRequest` plus a required `version` from the last read (409 on mismatch). Optional fields sent as null are cleared.

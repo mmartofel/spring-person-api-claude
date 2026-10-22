@@ -28,7 +28,8 @@ public class OpenApiConfig {
     }
 
     /**
-     * Documents Problem Details error responses by convention: 400 and 409 on POST/PUT, 404 on paths with {id}.
+     * Documents Problem Details error responses by convention: 400 and 409 on POST/PUT, 400 on list GETs
+     * (paths without {id}), 404 on paths with {id}.
      * Declaring them with {@code @ApiResponse} instead would stop springdoc from generating the success response.
      */
     @Bean
@@ -41,6 +42,9 @@ public class OpenApiConfig {
                     addProblem(operation, "400", "Invalid request; field errors in `errors`");
                     addProblem(operation, "409",
                             "Email already in use (`errors` with code `unique`) or stale `version` (no `errors`)");
+                }
+                if (method == HttpMethod.GET && !path.contains("{id}")) {
+                    addProblem(operation, "400", "Invalid filter (field errors in `errors`) or sort");
                 }
                 if (path.contains("{id}")) {
                     addProblem(operation, "404", "Not found");

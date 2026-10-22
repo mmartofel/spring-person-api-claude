@@ -29,12 +29,13 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     public static final String PAST = "past";
     public static final String UNIQUE = "unique";
     public static final String INVALID = "invalid";
+    public static final String DATE_RANGE = "date-range";
 
     /** Field-level error; {@code code} is stable for UI translation, {@code message} is an English fallback. */
     @Schema(name = "FieldError")
     public record FieldMessage(@Schema(requiredMode = Schema.RequiredMode.REQUIRED) String field,
                                @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                                       allowableValues = {REQUIRED, EMAIL, PAST, UNIQUE, INVALID}) String code,
+                                       allowableValues = {REQUIRED, EMAIL, PAST, UNIQUE, INVALID, DATE_RANGE}) String code,
                                @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String message) {
     }
 
@@ -61,6 +62,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case "NotBlank", "NotNull" -> REQUIRED;
             case "Email" -> EMAIL;
             case "Past" -> PAST;
+            case "DateRange" -> DATE_RANGE;
             case null, default -> INVALID;
         };
     }

@@ -2,7 +2,7 @@
   "openapi" : "3.1.0",
   "info" : {
     "title" : "Person API",
-    "version" : "3.2.0"
+    "version" : "3.3.0"
   },
   "servers" : [ {
     "url" : "http://localhost",
@@ -13,11 +13,39 @@
       "get" : {
         "operationId" : "listPersons",
         "parameters" : [ {
+          "description" : "Case-insensitive search in first name, last name and email",
           "in" : "query",
           "name" : "q",
           "required" : false,
           "schema" : {
             "type" : "string"
+          }
+        }, {
+          "description" : "Exact status",
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "AVAILABLE", "UNAVAILABLE" ]
+          }
+        }, {
+          "description" : "Status AVAILABLE and the date inside [availableFrom, availableTo]; an empty end means no limit",
+          "in" : "query",
+          "name" : "availableOn",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        }, {
+          "description" : "ISO 3166-1 alpha-2 country code of the address",
+          "in" : "query",
+          "name" : "countryCode",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^[A-Z]{2}$"
           }
         }, {
           "description" : "Zero-based page index (0..N)",
@@ -61,6 +89,16 @@
               }
             },
             "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Invalid filter (field errors in `errors`) or sort"
           }
         },
         "security" : [ {
@@ -260,12 +298,36 @@
   },
   "components" : {
     "schemas" : {
+      "Address" : {
+        "type" : "object",
+        "properties" : {
+          "city" : {
+            "type" : "string",
+            "maxLength" : 80,
+            "minLength" : 0
+          },
+          "countryCode" : {
+            "type" : "string",
+            "pattern" : "^[A-Z]{2}$"
+          },
+          "postalCode" : {
+            "type" : "string",
+            "maxLength" : 16,
+            "minLength" : 0
+          },
+          "street" : {
+            "type" : "string",
+            "maxLength" : 120,
+            "minLength" : 0
+          }
+        }
+      },
       "FieldError" : {
         "type" : "object",
         "properties" : {
           "code" : {
             "type" : "string",
-            "enum" : [ "required", "email", "past", "unique", "invalid" ]
+            "enum" : [ "required", "email", "past", "unique", "invalid", "date-range" ]
           },
           "field" : {
             "type" : "string"
@@ -314,6 +376,17 @@
       "PersonCreateRequest" : {
         "type" : "object",
         "properties" : {
+          "address" : {
+            "$ref" : "#/components/schemas/Address"
+          },
+          "availableFrom" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "availableTo" : {
+            "type" : "string",
+            "format" : "date"
+          },
           "birthDate" : {
             "type" : "string",
             "format" : "date"
@@ -334,6 +407,11 @@
           "lastName" : {
             "type" : "string",
             "minLength" : 1
+          },
+          "status" : {
+            "type" : "string",
+            "default" : "AVAILABLE",
+            "enum" : [ "AVAILABLE", "UNAVAILABLE" ]
           }
         },
         "required" : [ "email", "firstName", "lastName" ]
@@ -341,6 +419,17 @@
       "PersonResponse" : {
         "type" : "object",
         "properties" : {
+          "address" : {
+            "$ref" : "#/components/schemas/Address"
+          },
+          "availableFrom" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "availableTo" : {
+            "type" : "string",
+            "format" : "date"
+          },
           "birthDate" : {
             "type" : "string",
             "format" : "date"
@@ -362,16 +451,31 @@
           "lastName" : {
             "type" : "string"
           },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "AVAILABLE", "UNAVAILABLE" ]
+          },
           "version" : {
             "type" : "integer",
             "format" : "int64"
           }
         },
-        "required" : [ "email", "firstName", "id", "lastName", "version" ]
+        "required" : [ "email", "firstName", "id", "lastName", "status", "version" ]
       },
       "PersonUpdateRequest" : {
         "type" : "object",
         "properties" : {
+          "address" : {
+            "$ref" : "#/components/schemas/Address"
+          },
+          "availableFrom" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "availableTo" : {
+            "type" : "string",
+            "format" : "date"
+          },
           "birthDate" : {
             "type" : "string",
             "format" : "date"
@@ -392,6 +496,11 @@
           "lastName" : {
             "type" : "string",
             "minLength" : 1
+          },
+          "status" : {
+            "type" : "string",
+            "default" : "AVAILABLE",
+            "enum" : [ "AVAILABLE", "UNAVAILABLE" ]
           },
           "version" : {
             "type" : "integer",

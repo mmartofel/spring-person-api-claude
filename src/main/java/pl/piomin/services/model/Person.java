@@ -1,6 +1,7 @@
 package pl.piomin.services.model;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -13,6 +14,7 @@ import jakarta.persistence.Version;
 import pl.piomin.services.dto.PersonUpdateRequest;
 
 import java.time.LocalDate;
+import java.util.Objects;
 
 @Entity
 @Table(uniqueConstraints = @UniqueConstraint(name = Person.UNIQUE_EMAIL, columnNames = "email"))
@@ -32,6 +34,13 @@ public class Person {
     private LocalDate birthDate;
     @Enumerated(EnumType.STRING)
     private Gender gender;
+    @Embedded
+    private Address address;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PersonStatus status = PersonStatus.AVAILABLE;
+    private LocalDate availableFrom;
+    private LocalDate availableTo;
     @Version
     private Long version;
 
@@ -41,6 +50,10 @@ public class Person {
         email = source.email();
         birthDate = source.birthDate();
         gender = source.gender();
+        address = source.address() == null ? null : source.address().toEntity();
+        setStatus(source.status());
+        availableFrom = source.availableFrom();
+        availableTo = source.availableTo();
     }
 
     public Long getId() {
@@ -89,6 +102,39 @@ public class Person {
 
     public void setGender(Gender gender) {
         this.gender = gender;
+    }
+
+    public Address getAddress() {
+        return address;
+    }
+
+    public void setAddress(Address address) {
+        this.address = address;
+    }
+
+    public PersonStatus getStatus() {
+        return status;
+    }
+
+    /** A missing status means {@link PersonStatus#AVAILABLE}. */
+    public void setStatus(PersonStatus status) {
+        this.status = Objects.requireNonNullElse(status, PersonStatus.AVAILABLE);
+    }
+
+    public LocalDate getAvailableFrom() {
+        return availableFrom;
+    }
+
+    public void setAvailableFrom(LocalDate availableFrom) {
+        this.availableFrom = availableFrom;
+    }
+
+    public LocalDate getAvailableTo() {
+        return availableTo;
+    }
+
+    public void setAvailableTo(LocalDate availableTo) {
+        this.availableTo = availableTo;
     }
 
     public Long getVersion() {

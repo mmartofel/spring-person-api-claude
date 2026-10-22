@@ -4,7 +4,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springdoc.core.annotations.ParameterObject;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
@@ -16,11 +15,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import pl.piomin.services.dto.PersonCreateRequest;
+import pl.piomin.services.dto.PersonFilter;
 import pl.piomin.services.dto.PersonResponse;
 import pl.piomin.services.dto.PersonUpdateRequest;
 import pl.piomin.services.model.Person;
@@ -39,13 +38,9 @@ public class PersonController {
     }
 
     @GetMapping
-    public PagedModel<PersonResponse> listPersons(@RequestParam(required = false) String q,
-                                              @ParameterObject Pageable pageable) {
-        Page<Person> page = q == null || q.isBlank()
-                ? repository.findAll(pageable)
-                : repository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
-                        q, q, q, pageable);
-        return new PagedModel<>(page.map(PersonResponse::from));
+    public PagedModel<PersonResponse> listPersons(@ParameterObject @Valid PersonFilter filter,
+                                                  @ParameterObject Pageable pageable) {
+        return new PagedModel<>(repository.findAll(filter.toSpecification(), pageable).map(PersonResponse::from));
     }
 
     @GetMapping("/{id}")

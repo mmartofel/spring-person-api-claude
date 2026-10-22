@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.1.1**
+Version: **3.2.0**
 
 ## Changelog
+- **3.2.0**: Flyway migrations own the database schema; Hibernate only validates it. Databases created by Hibernate before 3.2.0 must be recreated (see [Database migrations](#database-migrations)). The API is unchanged.
 - **3.1.1**: The contract marks `status` and `title` of `Problem` as required (Spring always sets them).
 - **3.1.0**: Each item in a Problem Details `errors[]` has a stable `code` (`required`, `email`, `past`, `unique`, `invalid`) that the UI can translate. The contract documents the error responses (`Problem` and `FieldError` schemas, `application/problem+json`).
 - **3.0.0** (breaking): `PUT /api/persons/{id}` is a full replacement.
@@ -36,7 +37,7 @@ A Spring Boot 4 REST API for managing `Person` records, stored in PostgreSQL. Ev
 
 ## Stack
 - Java 21, Spring Boot 4.1.1, Maven
-- Spring Data JPA + PostgreSQL 18
+- Spring Data JPA + PostgreSQL 18, Flyway migrations
 - Spring Security OAuth2 Resource Server (JWT, validated against Keycloak's JWK set)
 - Keycloak 26.8.1, realm `person`: confidential client `person-api`, public client `person-ui` (Authorization Code + PKCE)
 - springdoc-openapi 3.1.1 (OpenAPI contract + Swagger UI)
@@ -113,7 +114,12 @@ Keycloak imports `k8s/realm.json` with `--import-realm`, which **skips a realm t
 - **Docker Compose:** run `docker compose up -d --force-recreate keycloak`. Keycloak in `start-dev` keeps its data inside the container, so the new container imports the realm from scratch. Users and settings added in the Admin Console are lost.
 - **Kubernetes / Skaffold:** Kustomize's `configMapGenerator` adds a content hash to the ConfigMap name. A changed `realm.json` therefore rolls out a new Keycloak pod, which imports the realm again. `skaffold dev` does this on save.
 
-Upgrading a local database from 1.x: 2.0.0 adds a `version` column and a unique email constraint. Recreate the containers with `docker compose down && docker compose up -d`.
+### Database migrations
+Flyway creates and upgrades the schema at startup from `src/main/resources/db/migration` (`V<n>__<description>.sql`). Hibernate runs with `ddl-auto: validate`, so the app does not start if the entities and the migrations disagree.
+
+Databases created by Hibernate before 3.2.0 have no Flyway history, and Flyway refuses to migrate a non-empty schema without one. Recreate them (this deletes the data):
+- **Docker Compose:** `docker compose down -v && docker compose up -d`. The `-v` removes the PostgreSQL volume.
+- **Kubernetes:** `k8s/postgres.yaml` has no PersistentVolumeClaim, so the data lives as long as the pod: `kubectl delete pod -l app=postgres` starts with an empty database. If you added a PVC, delete it as well.
 
 ## Deploy to Kubernetes
 ```shell

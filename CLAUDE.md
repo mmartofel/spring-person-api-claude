@@ -71,6 +71,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Response records mark always-present fields with `@Schema(requiredMode = REQUIRED)`, so the generated TypeScript types are not optional; responses are documented as `application/json` (`springdoc.default-produces-media-type`).
 - After any API change run `mvn verify` and commit the regenerated `contract/openapi.json` (CI fails otherwise).
 
+## Database
+- Flyway owns the schema (`src/main/resources/db/migration`); Hibernate only validates it (`ddl-auto: validate`), so any mismatch between entities and migrations fails at startup.
+- Never edit a migration that has been applied; every change is one new file `V<n>__<description>.sql`.
+- Every entity change ships with its migration in the same commit.
+- A new NOT NULL column gets a `DEFAULT` or a backfill, so existing rows keep working.
+- Name constraints explicitly (`pk_`, `uk_`, `ck_`, `fk_`); `uk_person_email` is referenced by `Person.UNIQUE_EMAIL` for the `unique` error code.
+
 ## Implementation notes (Spring Boot 4 / Spring Data 4 / springdoc 3)
 - `PropertyReferenceException` and `TypeInformation` moved to `org.springframework.data.core` in Spring Data 4.
 - Do not put `@EnableSpringDataWebSupport` on the application class: `@WebMvcTest` registers it twice and fails. Controllers return `PagedModel` explicitly instead.

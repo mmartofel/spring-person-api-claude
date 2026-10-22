@@ -1,12 +1,15 @@
 package pl.piomin.services;
 
 import com.jayway.jsonpath.JsonPath;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,6 +21,8 @@ import pl.piomin.services.config.SecurityConfig;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -40,6 +45,12 @@ class PersonApplicationIT {
 
     @Autowired
     MockMvc mvc;
+
+    @Autowired
+    Flyway flyway;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     private static JwtRequestPostProcessor editor() {
         return jwt().authorities(new SimpleGrantedAuthority("ROLE_" + SecurityConfig.EDITOR));
@@ -106,6 +117,21 @@ class PersonApplicationIT {
                 .andExpect(jsonPath("$.page.totalPages").value(2));
         mvc.perform(get(URL).param("sort", "unknown").with(editor()))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void migrationsApplied() {
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("1");
+        assertThat(flyway.info().pending()).isEmpty();
+    }
+
+    @Test
+    void databaseRejectsUnknownGender() {
+        assertThatThrownBy(() -> jdbc.update("""
+                insert into person (first_name, last_name, email, gender, version)
+                values ('Ewa', 'Check', 'ewa@example.com', 'UNKNOWN', 0)"""))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_person_gender");
     }
 
     @Test

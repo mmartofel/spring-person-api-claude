@@ -1,5 +1,6 @@
 package pl.piomin.services.controller;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -13,6 +14,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.ErrorResponseException;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import pl.piomin.services.model.Person;
@@ -30,12 +32,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     public static final String UNIQUE = "unique";
     public static final String INVALID = "invalid";
     public static final String DATE_RANGE = "date-range";
+    public static final String NOT_FOUND = "not-found";
+    public static final String IN_USE = "in-use";
 
-    /** Field-level error; {@code code} is stable for UI translation, {@code message} is an English fallback. */
+    /**
+     * Field-level error; {@code code} is stable for UI translation, {@code message} is an English fallback.
+     * {@code field} is absent for errors about the whole record (e.g. {@code in-use}).
+     */
     @Schema(name = "FieldError")
-    public record FieldMessage(@Schema(requiredMode = Schema.RequiredMode.REQUIRED) String field,
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record FieldMessage(String field,
                                @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                                       allowableValues = {REQUIRED, EMAIL, PAST, UNIQUE, INVALID, DATE_RANGE}) String code,
+                                       allowableValues = {REQUIRED, EMAIL, PAST, UNIQUE, INVALID, DATE_RANGE,
+                                               NOT_FOUND, IN_USE}) String code,
                                @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String message) {
     }
 
@@ -45,6 +54,23 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                           @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
                           @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int status,
                           String detail, URI instance, List<FieldMessage> errors) {
+    }
+
+    /** 400: {@code field} references a record that does not exist. */
+    public static ErrorResponseException notFound(String field) {
+        return problem(HttpStatus.BAD_REQUEST, "Referenced record does not exist",
+                new FieldMessage(field, NOT_FOUND, "does not exist"));
+    }
+
+    /** 409: the record is still referenced by other records and cannot be deleted. */
+    public static ErrorResponseException inUse(String detail, String message) {
+        return problem(HttpStatus.CONFLICT, detail, new FieldMessage(null, IN_USE, message));
+    }
+
+    private static ErrorResponseException problem(HttpStatus status, String detail, FieldMessage error) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+        problem.setProperty("errors", List.of(error));
+        return new ErrorResponseException(status, problem, null);
     }
 
     @Override

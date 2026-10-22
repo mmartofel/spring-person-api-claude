@@ -17,9 +17,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import pl.piomin.services.controller.ApiExceptionHandler.Problem;
 
+import java.util.Set;
+
 @Configuration
 @SecurityScheme(name = "bearer", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 public class OpenApiConfig {
+
+    /** Resources other records point to; deleting them returns 409 {@code in-use} while referenced. */
+    private static final Set<String> REFERENCED_PATHS = Set.of("/api/persons/{id}");
 
     /** The contract version follows the Maven project version. */
     @Bean
@@ -29,7 +34,7 @@ public class OpenApiConfig {
 
     /**
      * Documents Problem Details error responses by convention: 400 and 409 on POST/PUT, 400 on list GETs
-     * (paths without {id}), 404 on paths with {id}.
+     * (paths without {id}), 404 on paths with {id}, 409 on DELETE of a {@link #REFERENCED_PATHS referenced} resource.
      * Declaring them with {@code @ApiResponse} instead would stop springdoc from generating the success response.
      */
     @Bean
@@ -39,15 +44,19 @@ public class OpenApiConfig {
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
                 boolean write = method == HttpMethod.POST || method == HttpMethod.PUT;
                 if (write) {
-                    addProblem(operation, "400", "Invalid request; field errors in `errors`");
+                    addProblem(operation, "400",
+                            "Invalid request; field errors in `errors` (code `not-found` for an unknown reference)");
                     addProblem(operation, "409",
-                            "Email already in use (`errors` with code `unique`) or stale `version` (no `errors`)");
+                            "Value already in use (`errors` with code `unique`) or stale `version` (no `errors`)");
                 }
                 if (method == HttpMethod.GET && !path.contains("{id}")) {
                     addProblem(operation, "400", "Invalid filter (field errors in `errors`) or sort");
                 }
                 if (path.contains("{id}")) {
                     addProblem(operation, "404", "Not found");
+                }
+                if (method == HttpMethod.DELETE && REFERENCED_PATHS.contains(path)) {
+                    addProblem(operation, "409", "Still referenced by other records (`errors` with code `in-use`, no `field`)");
                 }
             }));
         };

@@ -24,6 +24,7 @@ import pl.piomin.services.model.Gender;
 import pl.piomin.services.model.Person;
 import pl.piomin.services.model.PersonStatus;
 import pl.piomin.services.repository.PersonRepository;
+import pl.piomin.services.repository.TaskRepository;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -60,6 +61,8 @@ class PersonControllerTest {
     MockMvc mvc;
     @MockitoBean
     PersonRepository repository;
+    @MockitoBean
+    TaskRepository taskRepository;
 
     private static JwtRequestPostProcessor editor() {
         return jwt().authorities(new SimpleGrantedAuthority("ROLE_" + SecurityConfig.EDITOR));
@@ -441,6 +444,21 @@ class PersonControllerTest {
         when(repository.existsById(1L)).thenReturn(true);
         mvc.perform(delete(URL + "/1").with(editor())).andExpect(status().isNoContent());
         verify(repository).deleteById(1L);
+    }
+
+    @Test
+    void deletePersonWithTasksIsInUse() throws Exception {
+        when(repository.existsById(1L)).thenReturn(true);
+        when(taskRepository.countByAssigneeId(1L)).thenReturn(2L);
+        mvc.perform(delete(URL + "/1").with(editor()))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("Person 1 is assigned to 2 tasks; reassign or delete them first"))
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].code").value("in-use"))
+                .andExpect(jsonPath("$.errors[0].message").value("still referenced by tasks"))
+                .andExpect(jsonPath("$.errors[0].field").doesNotExist());
+        verify(repository, never()).deleteById(any());
     }
 
     @Test

@@ -23,9 +23,7 @@ public record PersonFilter(
     public Specification<Person> toSpecification() {
         List<Specification<Person>> specs = new ArrayList<>();
         if (q != null && !q.isBlank()) {
-            String like = "%" + q.toLowerCase().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
-            specs.add((root, query, cb) -> cb.or(cb.like(cb.lower(root.get("firstName")), like, '\\'),
-                    cb.like(cb.lower(root.get("lastName")), like, '\\'), cb.like(cb.lower(root.get("email")), like, '\\')));
+            specs.add(Filters.search(q, "firstName", "lastName", "email"));
         }
         if (status != null) {
             specs.add((root, query, cb) -> cb.equal(root.get("status"), status));

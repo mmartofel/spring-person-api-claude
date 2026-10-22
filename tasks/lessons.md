@@ -20,3 +20,7 @@ Patterns learned from user corrections. Review at session start; add a rule afte
 ## Check your own identifiers before blaming the infrastructure
 - **Mistake:** Typed the repo owner as `mmartofe` instead of `mmartofel`, got 404s from the GitHub API, and reported a stale `gh` token and a GitHub REST outage. Fallbacks were documented in CLAUDE.md for a problem that did not exist.
 - **Rule:** When an API that worked before returns 404, first diff the request against the last working one (owner, repo, SHA) and take identifiers from the source (`git remote get-url origin`), not from memory. Only then suspect auth or the service.
+
+## Build from clean before trusting a green result
+- **Mistake:** Added a test helper with the same signature as an existing one. The build looked fine because classes compiled by the IDE (Eclipse compiler) were already in `target`, so the duplicate surfaced only later.
+- **Rule:** Verify with `mvn clean verify`. After a scripted edit (sed, perl, Python), check that it actually changed the file (`git diff --stat`) before building.

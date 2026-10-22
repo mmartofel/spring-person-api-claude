@@ -24,6 +24,7 @@ import pl.piomin.services.dto.PersonResponse;
 import pl.piomin.services.dto.PersonUpdateRequest;
 import pl.piomin.services.model.Person;
 import pl.piomin.services.repository.PersonRepository;
+import pl.piomin.services.repository.TaskRepository;
 
 @RestController
 @RequestMapping("/api/persons")
@@ -32,9 +33,11 @@ import pl.piomin.services.repository.PersonRepository;
 public class PersonController {
 
     private final PersonRepository repository;
+    private final TaskRepository taskRepository;
 
-    public PersonController(PersonRepository repository) {
+    public PersonController(PersonRepository repository, TaskRepository taskRepository) {
         this.repository = repository;
+        this.taskRepository = taskRepository;
     }
 
     @GetMapping
@@ -69,6 +72,11 @@ public class PersonController {
     public void deletePerson(@PathVariable Long id) {
         if (!repository.existsById(id)) {
             throw notFound(id);
+        }
+        long tasks = taskRepository.countByAssigneeId(id);
+        if (tasks > 0) {
+            throw ApiExceptionHandler.inUse("Person " + id + " is assigned to " + tasks
+                    + (tasks == 1 ? " task" : " tasks") + "; reassign or delete them first", "still referenced by tasks");
         }
         repository.deleteById(id);
     }

@@ -61,24 +61,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## API contract (consumed by the Web UI)
 - Controllers never expose entities: use `*Response`, `*CreateRequest`, `*UpdateRequest` records.
-- Errors are RFC 9457 Problem Details; validation and unique-constraint errors add `errors: [{field, code, message}]` (see `ApiExceptionHandler`). `code` is a stable, documented enum the UI translates (`required`, `email`, `past`, `unique`, `invalid`, `date-range`); `message` is an English fallback. A new constraint or code must be added to the mapping, the `FieldError` schema enum, the README table and the tests.
+- Errors are RFC 9457 Problem Details; validation and unique-constraint errors add `errors: [{field, code, message}]` (see `ApiExceptionHandler`). `code` is a stable, documented enum the UI translates (`required`, `email`, `past`, `unique`, `invalid`, `date-range`, `not-found`, `in-use`); `message` is an English fallback. `field` is omitted for errors about the whole record (`in-use`). A new constraint or code must be added to the mapping, the `FieldError` schema enum, the README table and the tests.
 - Cross-field rules are class-level constraints that report the error on one field, so the UI can show it next to an input: `@DateRange` (on the `AvailabilityWindow` interface) reports `availableTo` with code `date-range`.
-- Error responses are documented by convention in `OpenApiConfig#problemResponses` (400/409 on POST/PUT, 400 on list GETs, 404 on `{id}` paths, `application/problem+json`, schema `Problem`). Keep new endpoints consistent with it instead of annotating them.
+- Error responses are documented by convention in `OpenApiConfig#problemResponses` (400/409 on POST/PUT, 400 on list GETs, 404 on `{id}` paths, 409 on DELETE of a path in `REFERENCED_PATHS`, `application/problem+json`, schema `Problem`). Add a resource to `REFERENCED_PATHS` when another resource starts referencing it. Keep new endpoints consistent with it instead of annotating them.
 - List endpoints are paged (`page`, `size`, `sort`, `q`) and return `PagedModel` (`{content, page}`).
-- List filters are optional, named query parameters next to `q`, `page`, `size` and `sort` (e.g. `status`, `availableOn`, `countryCode`), never a generic filter expression. They are bound to a `<Resource>Filter` record (`@ParameterObject @Valid`, with `@Parameter(description)` per component) that builds a JPA `Specification`; filters combine with AND, and an invalid value returns 400 with `errors` (field = parameter name).
+- List filters are optional, named query parameters next to `q`, `page`, `size` and `sort` (e.g. `status`, `availableOn`, `countryCode`), never a generic filter expression. They are bound to a `<Resource>Filter` record (`@ParameterObject @Valid`, with `@Parameter(description)` per component) that builds a JPA `Specification`; filters combine with AND, and an invalid value returns 400 with `errors` (field = parameter name). `q` uses `Filters.search(q, attributes...)`, which escapes the LIKE wildcards `%`, `_` and `\`. Example: `GET /api/tasks?q=&done=&priority=&assigneeId=`.
+- Relations:
+  - Requests reference a related record by id: `<relation>Id` (e.g. `assigneeId`), nullable. An unknown id returns 400 with a field error on `<relation>Id`, code `not-found` (`ApiExceptionHandler.notFound`).
+  - Responses embed a `Reference` summary `{id, label}` (e.g. `assignee`), where `label` is the display name (`Person#getDisplayName`, "firstName lastName"), so a list never needs one request per row. Load the relation with `@EntityGraph` on the repository's `findAll(Specification, Pageable)` and `findById` (`open-in-view` is off).
+  - Deleting a record that is still referenced returns 409 with a `detail` and `errors: [{code: "in-use", message}]` without `field` (`ApiExceptionHandler.inUse`); it never cascades. The foreign key is `ON DELETE RESTRICT` as a backstop.
+  - A filter on a relation is `<relation>Id`.
 - Method names are the OpenAPI operationIds: `list<Resource>s`, `get<Resource>`, `create<Resource>`, `update<Resource>`, `delete<Resource>`.
 - Endpoints live under `/api`; reads need role `person-viewer` or `person-editor`, writes need `person-editor`.
-- `PUT` is a full replacement: `*UpdateRequest` has the same constraints as `*CreateRequest` plus a required `version` from the last read (409 on mismatch). Optional fields sent as null are cleared.
-- Validation constraints must translate to JSON Schema/JavaScript (the UI generates Zod schemas from the contract): no Java-only regex syntax such as `(?s)` or possessive quantifiers; prefer `@NotBlank`, `@Size`, `@Email`.
+- `PUT` is a full replacement: `*UpdateRequest` has the same constraints as `*CreateRequest` plus a required `version` from the last read (409 on mismatch). Optional fields sent as null are cleared; a field with a default (`status`, `priority`, `done`) sent as null gets its default again: the entity setter maps null to it (`Objects.requireNonNullElse`), the request documents it with `@Schema(defaultValue)`, and the migration has the same `DEFAULT`.
+- Server-set fields (`createdAt`, `updatedAt` via `@CreationTimestamp`/`@UpdateTimestamp`, `Instant`) appear only in responses, marked `@Schema(accessMode = READ_ONLY)`.
+- Validation constraints must translate to JSON Schema/JavaScript (the UI generates Zod schemas from the contract): no Java-only regex syntax such as `(?s)` or possessive quantifiers; prefer `@NotBlank`, `@Size`, `@Email`. A rule Bean Validation cannot express gets a custom constraint plus the matching `@Schema` keyword (e.g. a step: `@MultipleOf("0.5")` with `@Schema(multipleOf = 0.5)`), and a DB `CHECK` with the same rule.
 - Response records mark always-present fields with `@Schema(requiredMode = REQUIRED)`, so the generated TypeScript types are not optional; responses are documented as `application/json` (`springdoc.default-produces-media-type`).
-- After any API change run `mvn verify` and commit the regenerated `contract/openapi.json` (CI fails otherwise).
+- After any API change run `mvn clean verify` and commit the regenerated `contract/openapi.json` (CI fails otherwise).
 
 ## Database
 - Flyway owns the schema (`src/main/resources/db/migration`); Hibernate only validates it (`ddl-auto: validate`), so any mismatch between entities and migrations fails at startup.
 - Never edit a migration that has been applied; every change is one new file `V<n>__<description>.sql`.
 - Every entity change ships with its migration in the same commit.
 - A new NOT NULL column gets a `DEFAULT` or a backfill, so existing rows keep working.
-- Name constraints explicitly (`pk_`, `uk_`, `ck_`, `fk_`); `uk_person_email` is referenced by `Person.UNIQUE_EMAIL` for the `unique` error code.
+- Name constraints and indexes explicitly (`pk_`, `uk_`, `ck_`, `fk_`, `ix_`); index every foreign key column; `uk_person_email` is referenced by `Person.UNIQUE_EMAIL` for the `unique` error code.
 
 ## Implementation notes (Spring Boot 4 / Spring Data 4 / springdoc 3)
 - `PropertyReferenceException` and `TypeInformation` moved to `org.springframework.data.core` in Spring Data 4.
@@ -86,6 +92,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Any `@ApiResponse` on a controller method (also via a meta-annotation) stops springdoc 3 from generating the success response; that is why error responses are added by an `OpenApiCustomizer`.
 - Schemas registered manually must use `ModelConverters.getInstance(true)` (OpenAPI 3.1); the default instance omits `"type": "object"`.
 - Error codes come from `FieldError#getCode()` (the constraint's simple name, e.g. `NotBlank`) mapped in `ApiExceptionHandler#code`. The `Problem` record exists only to document the error body; keep it in sync with what the handler returns.
+- `ApiExceptionHandler.notFound`/`inUse` throw Spring's `ErrorResponseException` with a prepared `ProblemDetail`; `ResponseEntityExceptionHandler` renders it, so no extra `@ExceptionHandler` is needed.
+- `@WebMvcTest(XController.class)` creates no repositories: a repository newly injected into an existing controller (e.g. `TaskRepository` in `PersonController`) needs a `@MockitoBean` in that controller's test.
 - `exportOpenApiContract` writes the contract first and asserts afterwards, so a failing assertion still leaves the generated file to inspect.
 - Annotate `Pageable` parameters with springdoc's `@ParameterObject`, otherwise the contract shows one `pageable` object instead of `page`/`size`/`sort`.
 - The OpenAPI `info.version` comes from Maven `build-info` (`BuildProperties`); never hard-code it.
@@ -96,6 +104,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Ports 5432/8080 may be taken by containers of a sibling project (`spring-person-api-*`); check `podman ps` before `docker compose up`. Stop them only when the user asks, and then with `podman stop` (not `compose down`), so their data survives.
 
 ## Workflow
+- Build with `mvn clean verify`, not plain `mvn verify`: classes compiled by the IDE (Eclipse compiler) in `target` can hide `javac` errors such as a duplicate method.
+- macOS ships BSD tools: `sed` has no `\|` alternation and `grep` has no `-P`; use `perl -pi -e` for regex edits, and the Edit tool for multi-line changes.
 - Commit only when asked, and push only when asked; "commit" alone does not mean push.
 - Before committing, scan changed files for Polish text (all files must be in English).
 - After a push, check CI: `gh api repos/mmartofel/spring-person-api-claude/commits/<sha>/status` (context `ci/circleci: build`; logs at the `target_url`). Poll every 30 s or slower.

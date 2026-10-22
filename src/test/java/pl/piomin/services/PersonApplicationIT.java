@@ -21,6 +21,7 @@ import pl.piomin.services.config.SecurityConfig;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,6 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PersonApplicationIT {
 
     private static final String URL = "/api/persons";
+    private static final String TASKS = "/api/tasks";
 
     @Container
     @ServiceConnection
@@ -253,9 +255,153 @@ class PersonApplicationIT {
                 .hasMessageContaining("ck_person_available_range");
     }
 
+    private String createTask(String body) throws Exception {
+        String response = mvc.perform(post(TASKS).with(editor()).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(response, "$.id").toString();
+    }
+
+    private ResultActions listTasks(String param, String value) throws Exception {
+        return mvc.perform(get(TASKS).param(param, value).param("sort", "title").with(editor()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void taskRoundTrip() throws Exception {
+        String personId = create("Tara", "Tasker", "tara@example.com");
+        String id = createTask("""
+                {"title":"Roundtrip task","description":"Long text","priority":"HIGH","estimateHours":2.5,
+                 "dueDate":"2026-12-01","assigneeId":%s}""".formatted(personId));
+
+        String body = mvc.perform(get(TASKS + "/" + id).with(editor()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.priority").value("HIGH"))
+                .andExpect(jsonPath("$.estimateHours").value(2.5))
+                .andExpect(jsonPath("$.done").value(false))
+                .andExpect(jsonPath("$.dueDate").value("2026-12-01"))
+                .andExpect(jsonPath("$.assignee.id").value(Integer.parseInt(personId)))
+                .andExpect(jsonPath("$.assignee.label").value("Tara Tasker"))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.version").value(0))
+                .andReturn().getResponse().getContentAsString();
+        Instant createdAt = Instant.parse(JsonPath.read(body, "$.createdAt"));
+        Instant updatedAt = Instant.parse(JsonPath.read(body, "$.updatedAt"));
+
+        body = mvc.perform(put(TASKS + "/" + id).with(editor()).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"Roundtrip task","done":true,"assigneeId":null,"version":0}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.priority").value("MEDIUM"))
+                .andExpect(jsonPath("$.done").value(true))
+                .andExpect(jsonPath("$.description").isEmpty())
+                .andExpect(jsonPath("$.assignee").isEmpty())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(Instant.parse(JsonPath.<String>read(body, "$.createdAt"))).isEqualTo(createdAt);
+        assertThat(Instant.parse(JsonPath.<String>read(body, "$.updatedAt"))).isAfter(updatedAt);
+
+        mvc.perform(put(TASKS + "/" + id).with(editor()).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"Stale","version":0}"""))
+                .andExpect(status().isConflict());
+        mvc.perform(delete(TASKS + "/" + id).with(editor())).andExpect(status().isNoContent());
+        mvc.perform(get(TASKS + "/" + id).with(editor())).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void taskFilters() throws Exception {
+        String alice = create("Alice", "Filter", "alice-filter@example.com");
+        String bob = create("Bob", "Filter", "bob-filter@example.com");
+        createTask("""
+                {"title":"TF1 open high","priority":"HIGH","assigneeId":%s}""".formatted(alice));
+        createTask("""
+                {"title":"TF2 done low","priority":"LOW","done":true,"assigneeId":%s}""".formatted(bob));
+        createTask("""
+                {"title":"TF3 open medium","description":"Mentions 100%_done literally"}""");
+
+        mvc.perform(get(TASKS).param("q", "tf").param("sort", "title").with(editor()))
+                .andExpect(jsonPath("$.content[*].title", contains("TF1 open high", "TF2 done low", "TF3 open medium")));
+        listTasks("assigneeId", alice).andExpect(jsonPath("$.content[*].title", contains("TF1 open high")));
+        listTasks("assigneeId", bob).andExpect(jsonPath("$.content[*].title", contains("TF2 done low")));
+        listTasks("priority", "LOW").andExpect(jsonPath("$.content[*].title", contains("TF2 done low")));
+        mvc.perform(get(TASKS).param("q", "tf").param("done", "false").param("sort", "title").with(editor()))
+                .andExpect(jsonPath("$.content[*].title", contains("TF1 open high", "TF3 open medium")));
+        mvc.perform(get(TASKS).param("q", "tf").param("done", "true").with(editor()))
+                .andExpect(jsonPath("$.content[*].title", contains("TF2 done low")));
+        listTasks("q", "100%_DONE").andExpect(jsonPath("$.content[*].title", contains("TF3 open medium")));
+        listTasks("q", "TF%HIGH").andExpect(jsonPath("$.content").isEmpty());
+        listTasks("assigneeId", "999999").andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @Test
+    void taskUnknownAssignee() throws Exception {
+        mvc.perform(post(TASKS).with(editor()).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"Ghost","assigneeId":999999}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("assigneeId"))
+                .andExpect(jsonPath("$.errors[0].code").value("not-found"));
+        String id = createTask("""
+                {"title":"Ghost later"}""");
+        mvc.perform(put(TASKS + "/" + id).with(editor()).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"Ghost later","assigneeId":999999,"version":0}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("assigneeId"))
+                .andExpect(jsonPath("$.errors[0].code").value("not-found"));
+    }
+
+    @Test
+    void deletingAssignedPersonIsRefused() throws Exception {
+        String personId = create("Ivan", "Inuse", "ivan-inuse@example.com");
+        String taskId = createTask("""
+                {"title":"Keeps Ivan","assigneeId":%s}""".formatted(personId));
+
+        mvc.perform(delete(URL + "/" + personId).with(editor()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Person " + personId + " is assigned to 1 task; reassign or delete them first"))
+                .andExpect(jsonPath("$.errors[0].code").value("in-use"))
+                .andExpect(jsonPath("$.errors[0].field").doesNotExist());
+        mvc.perform(get(URL + "/" + personId).with(editor())).andExpect(status().isOk());
+        mvc.perform(get(TASKS + "/" + taskId).with(editor())).andExpect(jsonPath("$.assignee.label").value("Ivan Inuse"));
+
+        mvc.perform(put(TASKS + "/" + taskId).with(editor()).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"Keeps Ivan","assigneeId":null,"version":0}"""))
+                .andExpect(status().isOk());
+        mvc.perform(delete(URL + "/" + personId).with(editor())).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void databaseGuardsTasks() {
+        Long personId = jdbc.queryForObject("""
+                insert into person (first_name, last_name, email, version)
+                values ('Db', 'Guard', 'db-guard@example.com', 0) returning id""", Long.class);
+        jdbc.update("""
+                insert into task (title, assignee_id, created_at, updated_at, version)
+                values ('Guarded', ?, now(), now(), 0)""", personId);
+        assertThatThrownBy(() -> jdbc.update("delete from person where id = ?", personId))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("fk_task_assignee");
+        assertThatThrownBy(() -> jdbc.update("""
+                insert into task (title, priority, created_at, updated_at, version)
+                values ('Bad priority', 'URGENT', now(), now(), 0)"""))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_task_priority");
+        assertThatThrownBy(() -> jdbc.update("""
+                insert into task (title, estimate_hours, created_at, updated_at, version)
+                values ('Bad estimate', 1.3, now(), now(), 0)"""))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_task_estimate_hours");
+        assertThat(jdbc.queryForObject("""
+                select priority || '/' || done from task where title = 'Guarded'""", String.class))
+                .isEqualTo("MEDIUM/false");
+    }
+
     @Test
     void migrationsApplied() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
         assertThat(flyway.info().pending()).isEmpty();
     }
 
@@ -302,6 +448,22 @@ class PersonApplicationIT {
                         .value("#/components/schemas/Problem"))
                 .andExpect(jsonPath("$.components.schemas.Problem.required", containsInAnyOrder("status", "title")))
                 .andExpect(jsonPath("$.components.schemas.FieldError.properties.code.enum",
-                        containsInAnyOrder("required", "email", "past", "unique", "invalid", "date-range")));
+                        containsInAnyOrder("required", "email", "past", "unique", "invalid", "date-range",
+                                "not-found", "in-use")))
+                .andExpect(jsonPath("$.components.schemas.FieldError.required", containsInAnyOrder("code", "message")))
+                .andExpect(jsonPath("$.paths['/api/tasks'].get.operationId").value("listTasks"))
+                .andExpect(jsonPath("$.paths['/api/tasks'].post.operationId").value("createTask"))
+                .andExpect(jsonPath("$.paths['/api/tasks/{id}'].get.operationId").value("getTask"))
+                .andExpect(jsonPath("$.paths['/api/tasks/{id}'].put.operationId").value("updateTask"))
+                .andExpect(jsonPath("$.paths['/api/tasks/{id}'].delete.operationId").value("deleteTask"))
+                .andExpect(jsonPath("$.paths['/api/tasks'].get.parameters[*].name",
+                        hasItems("q", "done", "priority", "assigneeId", "page", "size", "sort")))
+                .andExpect(jsonPath("$.components.schemas.TaskResponse.required", containsInAnyOrder(
+                        "id", "title", "priority", "done", "createdAt", "updatedAt", "version")))
+                .andExpect(jsonPath("$.components.schemas.Reference.required", containsInAnyOrder("id", "label")))
+                .andExpect(jsonPath("$.components.schemas.TaskCreateRequest.properties.estimateHours.multipleOf").value(0.5))
+                .andExpect(jsonPath("$.components.schemas.TaskCreateRequest.properties.priority.default").value("MEDIUM"))
+                .andExpect(jsonPath("$.paths['/api/persons/{id}'].delete.responses['409']").exists())
+                .andExpect(jsonPath("$.paths['/api/tasks/{id}'].delete.responses['409']").doesNotExist());
     }
 }

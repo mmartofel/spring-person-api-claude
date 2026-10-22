@@ -76,6 +76,11 @@ public class Person {
         return lastName;
     }
 
+    /** Label shown when a person is referenced by another record. */
+    public String getDisplayName() {
+        return firstName + " " + lastName;
+    }
+
     public void setLastName(String lastName) {
         this.lastName = lastName;
     }

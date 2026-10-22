@@ -40,8 +40,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     /** RFC 9457 Problem Details as returned by this API; used only to document error responses. */
     @Schema(name = "Problem")
-    public record Problem(URI type, String title, int status, String detail, URI instance,
-                          List<FieldMessage> errors) {
+    public record Problem(URI type,
+                          @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
+                          @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int status,
+                          String detail, URI instance, List<FieldMessage> errors) {
     }
 
     @Override

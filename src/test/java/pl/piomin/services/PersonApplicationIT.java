@@ -136,6 +136,7 @@ class PersonApplicationIT {
                 .andExpect(jsonPath("$..pattern").isEmpty())
                 .andExpect(jsonPath("$.paths['/api/persons'].post.responses['409'].content['application/problem+json'].schema['$ref']")
                         .value("#/components/schemas/Problem"))
+                .andExpect(jsonPath("$.components.schemas.Problem.required", containsInAnyOrder("status", "title")))
                 .andExpect(jsonPath("$.components.schemas.FieldError.properties.code.enum",
                         containsInAnyOrder("required", "email", "past", "unique", "invalid")));
     }

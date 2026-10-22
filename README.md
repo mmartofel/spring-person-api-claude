@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.1.0**
+Version: **3.1.1**
 
 ## Changelog
+- **3.1.1**: The contract marks `status` and `title` of `Problem` as required (Spring always sets them).
 - **3.1.0**: Each item in a Problem Details `errors[]` has a stable `code` (`required`, `email`, `past`, `unique`, `invalid`) that the UI can translate. The contract documents the error responses (`Problem` and `FieldError` schemas, `application/problem+json`).
 - **3.0.0** (breaking): `PUT /api/persons/{id}` is a full replacement.
   - The body needs all required fields plus `version`.

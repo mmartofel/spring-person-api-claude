@@ -61,7 +61,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## API contract (consumed by the Web UI)
 - Controllers never expose entities: use `*Response`, `*CreateRequest`, `*UpdateRequest` records.
-- Errors are RFC 9457 Problem Details; validation errors add `errors: [{field, message}]` (see `ApiExceptionHandler`).
+- Errors are RFC 9457 Problem Details; validation and unique-constraint errors add `errors: [{field, code, message}]` (see `ApiExceptionHandler`). `code` is a stable, documented enum the UI translates (`required`, `email`, `past`, `unique`, `invalid`); `message` is an English fallback. A new constraint or code must be added to the mapping, the `FieldError` schema enum, the README table and the tests.
+- Error responses are documented by convention in `OpenApiConfig#problemResponses` (400/409 on POST/PUT, 404 on `{id}` paths, `application/problem+json`, schema `Problem`). Keep new endpoints consistent with it instead of annotating them.
 - List endpoints are paged (`page`, `size`, `sort`, `q`) and return `PagedModel` (`{content, page}`).
 - Method names are the OpenAPI operationIds: `list<Resource>s`, `get<Resource>`, `create<Resource>`, `update<Resource>`, `delete<Resource>`.
 - Endpoints live under `/api`; reads need role `person-viewer` or `person-editor`, writes need `person-editor`.
@@ -73,6 +74,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Implementation notes (Spring Boot 4 / Spring Data 4 / springdoc 3)
 - `PropertyReferenceException` and `TypeInformation` moved to `org.springframework.data.core` in Spring Data 4.
 - Do not put `@EnableSpringDataWebSupport` on the application class: `@WebMvcTest` registers it twice and fails. Controllers return `PagedModel` explicitly instead.
+- Any `@ApiResponse` on a controller method (also via a meta-annotation) stops springdoc 3 from generating the success response; that is why error responses are added by an `OpenApiCustomizer`.
+- Schemas registered manually must use `ModelConverters.getInstance(true)` (OpenAPI 3.1); the default instance omits `"type": "object"`.
+- `exportOpenApiContract` writes the contract first and asserts afterwards, so a failing assertion still leaves the generated file to inspect.
 - Annotate `Pageable` parameters with springdoc's `@ParameterObject`, otherwise the contract shows one `pageable` object instead of `page`/`size`/`sort`.
 - The OpenAPI `info.version` comes from Maven `build-info` (`BuildProperties`); never hard-code it.
 - Keycloak realm roles are read from the `realm_access.roles` claim and mapped to `ROLE_<role>` in `SecurityConfig`.

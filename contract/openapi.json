@@ -2,7 +2,7 @@
   "openapi" : "3.1.0",
   "info" : {
     "title" : "Person API",
-    "version" : "3.0.0"
+    "version" : "3.1.0"
   },
   "servers" : [ {
     "url" : "http://localhost",
@@ -90,6 +90,26 @@
               }
             },
             "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Invalid request; field errors in `errors`"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Email already in use (`errors` with code `unique`) or stale `version` (no `errors`)"
           }
         },
         "security" : [ {
@@ -113,6 +133,16 @@
         "responses" : {
           "204" : {
             "description" : "No Content"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not found"
           }
         },
         "security" : [ {
@@ -141,6 +171,16 @@
               }
             },
             "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not found"
           }
         },
         "security" : [ {
@@ -179,6 +219,36 @@
               }
             },
             "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Invalid request; field errors in `errors`"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Email already in use (`errors` with code `unique`) or stale `version` (no `errors`)"
           }
         },
         "security" : [ {
@@ -190,6 +260,22 @@
   },
   "components" : {
     "schemas" : {
+      "FieldError" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "enum" : [ "required", "email", "past", "unique", "invalid" ]
+          },
+          "field" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "field", "message" ]
+      },
       "PageMetadata" : {
         "type" : "object",
         "properties" : {
@@ -313,6 +399,35 @@
           }
         },
         "required" : [ "email", "firstName", "lastName", "version" ]
+      },
+      "Problem" : {
+        "type" : "object",
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "errors" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FieldError"
+            }
+          },
+          "instance" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          }
+        }
       }
     },
     "securitySchemes" : {

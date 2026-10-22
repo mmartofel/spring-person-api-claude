@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.contains;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -37,6 +38,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -138,8 +140,20 @@ class PersonControllerTest {
     void createPersonInvalid() throws Exception {
         mvc.perform(post(URL).with(editor()).contentType(MediaType.APPLICATION_JSON).content(INVALID))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[?(@.field == 'firstName')]").exists())
-                .andExpect(jsonPath("$.errors[?(@.field == 'email')]").exists());
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors[?(@.field == 'firstName')].code", contains("required")))
+                .andExpect(jsonPath("$.errors[?(@.field == 'email')].code", contains("email")))
+                .andExpect(jsonPath("$.errors[?(@.field == 'email')].message", contains("must be a well-formed email address")));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void createPersonFutureBirthDate() throws Exception {
+        mvc.perform(post(URL).with(editor()).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"firstName":"John","lastName":"Smith","email":"john@example.com","birthDate":"2999-01-01"}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("birthDate"))
+                .andExpect(jsonPath("$.errors[0].code").value("past"));
         verify(repository, never()).save(any());
     }
 
@@ -149,7 +163,8 @@ class PersonControllerTest {
                 new ConstraintViolationException("duplicate", new SQLException(), Person.UNIQUE_EMAIL)));
         mvc.perform(post(URL).with(editor()).contentType(MediaType.APPLICATION_JSON).content(VALID))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.errors[0].field").value("email"));
+                .andExpect(jsonPath("$.errors[0].field").value("email"))
+                .andExpect(jsonPath("$.errors[0].code").value("unique"));
     }
 
     @Test

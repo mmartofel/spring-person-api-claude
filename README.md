@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.0.0**
+Version: **3.1.0**
 
 ## Changelog
+- **3.1.0**: Each item in a Problem Details `errors[]` has a stable `code` (`required`, `email`, `past`, `unique`, `invalid`) that the UI can translate. The contract documents the error responses (`Problem` and `FieldError` schemas, `application/problem+json`).
 - **3.0.0** (breaking): `PUT /api/persons/{id}` is a full replacement.
   - The body needs all required fields plus `version`.
   - Optional fields sent as `null` (`birthDate`, `gender`) are cleared.
@@ -61,11 +62,25 @@ The list endpoint takes these query parameters:
 
 Response fields: `id`, `firstName`, `lastName`, `email`, `birthDate` (ISO date, past), `gender` (`MALE`, `FEMALE`, `OTHER`), `version`.
 
-Errors are [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457). Validation and unique-email errors add the fields:
+Errors are [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) (`application/problem+json`, schema `Problem` in the contract). Validation and unique-email errors list the affected fields in `errors`:
 ```json
 {"status":400,"title":"Bad Request","detail":"Invalid request content.","instance":"/api/persons",
- "errors":[{"field":"email","message":"must be a well-formed email address"}]}
+ "errors":[{"field":"email","code":"email","message":"must be a well-formed email address"}]}
 ```
+`code` is stable, so the UI should translate it. `message` is an English fallback.
+
+| `code`     | Meaning                                         | Source                     |
+|------------|-------------------------------------------------|----------------------------|
+| `required` | The field is missing or blank                   | `@NotBlank`, `@NotNull`    |
+| `email`    | Not a well-formed email address                 | `@Email`                   |
+| `past`     | The date must be in the past                    | `@Past`                    |
+| `unique`   | The value is already used by another person (409) | unique email constraint  |
+| `invalid`  | Any other constraint                            | other Bean Validation constraints |
+
+Which error responses each endpoint can return:
+- 400 on `POST` and `PUT`.
+- 404 on every `/{id}` path.
+- 409 on `POST` and `PUT`: a duplicate email has `errors`, a stale `version` has none.
 
 ### OpenAPI contract
 The contract for the Web UI is committed in `contract/openapi.json`. `mvn verify` regenerates it (in `PersonApplicationIT`), and CI fails if the committed file is out of date. While the app runs, Swagger UI is at http://localhost:8081/swagger-ui.html: click **Authorize** and paste a token.

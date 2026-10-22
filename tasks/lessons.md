@@ -16,3 +16,7 @@ Patterns learned from user corrections. Review at session start; add a rule afte
 ## Keep validation constraints portable to JavaScript
 - **Mistake:** Used `@Pattern("(?s).*\\S.*")` for "not blank if present". The regex lands in the OpenAPI contract, and the `(?s)` flag is invalid in JavaScript, so the UI's generated Zod schemas break.
 - **Rule:** Constraints must translate to JSON Schema that JavaScript understands. Prefer `@NotBlank`, `@Size`, `@Email`; if a `@Pattern` is unavoidable, use syntax valid in both Java and JavaScript.
+
+## Check your own identifiers before blaming the infrastructure
+- **Mistake:** Typed the repo owner as `mmartofe` instead of `mmartofel`, got 404s from the GitHub API, and reported a stale `gh` token and a GitHub REST outage. Fallbacks were documented in CLAUDE.md for a problem that did not exist.
+- **Rule:** When an API that worked before returns 404, first diff the request against the last working one (owner, repo, SHA) and take identifiers from the source (`git remote get-url origin`), not from memory. Only then suspect auth or the service.

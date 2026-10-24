@@ -21,6 +21,8 @@ import pl.piomin.services.model.Person;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** All errors are RFC 9457 Problem Details; field-level errors are listed in {@code errors}. */
 @RestControllerAdvice
@@ -76,8 +78,14 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex, HttpHeaders headers,
                                                                   HttpStatusCode status, WebRequest request) {
-        ex.getBody().setProperty("errors", ex.getFieldErrors().stream()
+        List<FieldMessage> errors = ex.getFieldErrors().stream()
                 .map(e -> new FieldMessage(e.getField(), code(e.getCode()), e.getDefaultMessage()))
+                .toList();
+        // An empty required text breaks both @NotBlank and @Size(min = 1); report only "required" for that field.
+        Set<String> missing = errors.stream().filter(e -> REQUIRED.equals(e.code())).map(FieldMessage::field)
+                .collect(Collectors.toSet());
+        ex.getBody().setProperty("errors", errors.stream()
+                .filter(e -> REQUIRED.equals(e.code()) || !missing.contains(e.field()))
                 .toList());
         return super.handleMethodArgumentNotValid(ex, headers, status, request);
     }

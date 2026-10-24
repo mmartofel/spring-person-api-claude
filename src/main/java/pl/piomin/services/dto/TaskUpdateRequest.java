@@ -15,7 +15,7 @@ import java.time.LocalDate;
  * Full replacement: optional fields sent as null are cleared, a missing priority becomes MEDIUM and a missing
  * done becomes false. {@code version} must match the stored one.
  */
-public record TaskUpdateRequest(@NotBlank @Size(max = 120) String title,
+public record TaskUpdateRequest(@NotBlank @Size(min = 1, max = 120) String title,
                                 @Size(max = 2000) String description,
                                 @Schema(defaultValue = "MEDIUM") TaskPriority priority,
                                 @DecimalMin("0.5") @DecimalMax("999") @MultipleOf("0.5") @Schema(multipleOf = 0.5)

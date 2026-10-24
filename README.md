@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.4.1**
+Version: **3.4.2**
 
 ## Changelog
+- **3.4.2**: Fix: the contract now marks a task `title` as `minLength: 1`, so the UI rejects an empty title before sending it (it showed `minLength: 0`, because `@Size(max)` overrode `@NotBlank`). An empty required text returns one `required` error, not also `invalid`. No behaviour change otherwise.
 - **3.4.1**: Fix: `PUT /api/tasks/{id}` with a new `assigneeId` saved the change but returned 500. Task writes now run in a transaction. Unexpected errors return Problem Details (500) instead of Spring's default error body. The contract is unchanged.
 - **3.4.0**: New `Task` resource at `/api/tasks` with an optional assignee (a person).
   - Requests reference the assignee as `assigneeId`. Responses embed `assignee: {id, label}`.

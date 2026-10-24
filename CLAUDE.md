@@ -101,6 +101,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Keycloak realm roles are read from the `realm_access.roles` claim and mapped to `ROLE_<role>` in `SecurityConfig`.
 - The Keycloak realm (`k8s/realm.json`) is shared by Docker Compose and Kubernetes; `--import-realm` skips an existing realm, so after changing it run `docker compose up -d --force-recreate keycloak` (Kubernetes rolls a new pod automatically via the ConfigMap hash). The realm has i18n enabled (`en` default, `pl`); the login page follows `ui_locales`.
 - `@NotBlank` appears in the contract only as `minLength: 1`, so a whitespace-only value passes client-side validation and is rejected by the server with a field error.
+- `@Size(max = N)` next to `@NotBlank` overwrites that `minLength: 1` with `0` (and `@Schema(minLength = 1)` does not win), so required text fields use `@NotBlank @Size(min = 1, max = N)`. An empty value then breaks both constraints; `ApiExceptionHandler` keeps only `required` for a field that has it.
 - Run integration tests with Podman by setting `DOCKER_HOST` to the Podman socket and `TESTCONTAINERS_RYUK_DISABLED=true` (see README). Without Docker/Podman they are skipped, and the contract is not regenerated.
 - Ports 5432/8080 may be taken by containers of a sibling project (`spring-person-api-*`); check `podman ps` before `docker compose up`. Stop them only when the user asks, and then with `podman stop` (not `compose down`), so their data survives.
 

@@ -12,7 +12,7 @@ import pl.piomin.services.model.TaskPriority;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-public record TaskCreateRequest(@NotBlank @Size(max = 120) String title,
+public record TaskCreateRequest(@NotBlank @Size(min = 1, max = 120) String title,
                                 @Size(max = 2000) String description,
                                 @Schema(defaultValue = "MEDIUM") TaskPriority priority,
                                 @DecimalMin("0.5") @DecimalMax("999") @MultipleOf("0.5") @Schema(multipleOf = 0.5)

@@ -220,6 +220,17 @@ class TaskControllerTest {
     }
 
     @Test
+    void createTaskEmptyTitleIsOneRequiredError() throws Exception {
+        mvc.perform(post(URL).with(editor()).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"title":""}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].field").value("title"))
+                .andExpect(jsonPath("$.errors[0].code").value("required"));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
     void createTaskTooLongText() throws Exception {
         mvc.perform(post(URL).with(editor()).contentType(MediaType.APPLICATION_JSON).content("""
                         {"title":"%s","description":"%s"}""".formatted("t".repeat(121), "d".repeat(2001))))

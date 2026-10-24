@@ -482,6 +482,8 @@ class PersonApplicationIT {
                 .andExpect(jsonPath("$.components.schemas.TaskResponse.required", containsInAnyOrder(
                         "id", "title", "priority", "done", "createdAt", "updatedAt", "version")))
                 .andExpect(jsonPath("$.components.schemas.Reference.required", containsInAnyOrder("id", "label")))
+                .andExpect(jsonPath("$.components.schemas.TaskCreateRequest.properties.title.minLength").value(1))
+                .andExpect(jsonPath("$.components.schemas.TaskUpdateRequest.properties.title.minLength").value(1))
                 .andExpect(jsonPath("$.components.schemas.TaskCreateRequest.properties.estimateHours.multipleOf").value(0.5))
                 .andExpect(jsonPath("$.components.schemas.TaskCreateRequest.properties.priority.default").value("MEDIUM"))
                 .andExpect(jsonPath("$.paths['/api/persons/{id}'].delete.responses['409']").exists())

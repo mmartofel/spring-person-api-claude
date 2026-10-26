@@ -195,6 +195,23 @@ Databases created by Hibernate before 3.2.0 have no Flyway history, and Flyway r
 - **Docker Compose:** `docker compose down -v && docker compose up -d`. The `-v` removes the PostgreSQL volume.
 - **Kubernetes:** `k8s/postgres.yaml` has no PersistentVolumeClaim, so the data lives as long as the pod: `kubectl delete pod -l app=postgres` starts with an empty database. If you added a PVC, delete it as well.
 
+## Connect a UI
+A web UI made from [crud-ui-blueprint](https://github.com/mmartofel/crud-ui-blueprint) reads this section in its
+`crud-ui-init` skill. Its `.env.local` for this API's local stack (Keycloak 8080, API 8081, realm `person`):
+```
+VITE_OIDC_AUTHORITY=http://localhost:8080/realms/person
+VITE_OIDC_CLIENT_ID=person-ui
+VITE_OIDC_ROLES_CLAIM=realm_access.roles
+API_PROXY_TARGET=http://localhost:8081
+CONTRACT_SOURCE=../spring-person-api-claude/contract/openapi.json
+E2E_WRITER_USER=editor
+E2E_WRITER_PASSWORD=editor
+E2E_READER_USER=viewer
+E2E_READER_PASSWORD=viewer
+```
+Read role `person-viewer`, write role `person-editor` (realm roles, in `realm_access.roles` of the access token). In
+Kubernetes the UI's `API_UPSTREAM` is `http://spring-person-api:8080` (the Service in `k8s/app.yaml`).
+
 ## Deploy to Kubernetes
 ```shell
 skaffold dev                                  # local cluster, e.g. minikube or kind

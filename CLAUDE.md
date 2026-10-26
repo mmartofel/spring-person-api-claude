@@ -57,6 +57,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Do not use the Lombok library.
 - Generate the Docker Compose file to run all components used by the application.
 - Update README.md each time you generate a new version.
+- Keep the README "Connect a UI" section (the `.env.local` lines a crud-ui-blueprint UI reads) up to date: a changed
+  port, realm, client, user or role changes it.
 - Write all code, comments, commit messages and documentation in English. The user may talk to you in Polish; reply in the user's language, but never put Polish into files.
 
 ## API contract (consumed by the Web UI)

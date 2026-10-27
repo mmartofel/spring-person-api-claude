@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.4.2**
+Version: **3.4.3**
 
 ## Changelog
+- **3.4.3**: Fix: `/actuator/info` (with `build.version`) is public, and `/actuator/health` lists its components (`db`, `diskSpace`, ...) without details, for the UI footer. Other Actuator endpoints stay protected. The readiness probe now checks the database (its group setting was misplaced and ignored). The contract is unchanged.
 - **3.4.2**: Fix: the contract now marks a task `title` as `minLength: 1`, so the UI rejects an empty title before sending it (it showed `minLength: 0`, because `@Size(max)` overrode `@NotBlank`). An empty required text returns one `required` error, not also `invalid`. No behaviour change otherwise.
 - **3.4.1**: Fix: `PUT /api/tasks/{id}` with a new `assigneeId` saved the change but returned 500. Task writes now run in a transaction. Unexpected errors return Problem Details (500) instead of Spring's default error body. The contract is unchanged.
 - **3.4.0**: New `Task` resource at `/api/tasks` with an optional assignee (a person).
@@ -53,7 +54,7 @@ A Spring Boot 4 REST API for managing `Person` and `Task` records, stored in Pos
 - JUnit 5, MockMvc, Testcontainers; CircleCI
 
 ## API
-All `/api/**` endpoints require `Authorization: Bearer <token>`. Reads need realm role `person-viewer` or `person-editor`; writes need `person-editor`. Public: `/actuator/health/**`, `/v3/api-docs`, `/swagger-ui.html`.
+All `/api/**` endpoints require `Authorization: Bearer <token>`. Reads need realm role `person-viewer` or `person-editor`; writes need `person-editor`. Public: `/actuator/health/**` (status of each component, no details), `/actuator/info` (`build.version`), `/v3/api-docs`, `/swagger-ui.html`.
 
 ### Persons
 
@@ -210,7 +211,8 @@ E2E_READER_USER=viewer
 E2E_READER_PASSWORD=viewer
 ```
 Read role `person-viewer`, write role `person-editor` (realm roles, in `realm_access.roles` of the access token). In
-Kubernetes the UI's `API_UPSTREAM` is `http://spring-person-api:8080` (the Service in `k8s/app.yaml`).
+Kubernetes the UI's `API_UPSTREAM` is `http://spring-person-api:8080` (the Service in `k8s/app.yaml`). The UI footer reads the public
+`/actuator/health` (components) and `/actuator/info` (`build.version`) without a token.
 
 ## Deploy to Kubernetes
 ```shell

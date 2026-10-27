@@ -440,9 +440,25 @@ class PersonApplicationIT {
         mvc.perform(get(URL)).andExpect(status().isUnauthorized());
     }
 
+    /** The UI footer reads health and info without a token. */
     @Test
-    void healthIsPublic() throws Exception {
-        mvc.perform(get("/actuator/health")).andExpect(status().isOk());
+    void statusEndpointsArePublic() throws Exception {
+        mvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components.db.status").value("UP"))
+                .andExpect(jsonPath("$.components.db.details").doesNotExist());
+        mvc.perform(get("/actuator/health/readiness"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.db").exists());
+
+        String apiVersion = JsonPath.read(mvc.perform(get("/v3/api-docs"))
+                .andReturn().getResponse().getContentAsString(), "$.info.version");
+        mvc.perform(get("/actuator/info"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.build.version").value(apiVersion));
+
+        mvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
     }
 
     /** Regenerates the committed API contract consumed by the Web UI. */

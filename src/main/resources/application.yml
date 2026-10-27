@@ -23,13 +23,18 @@ spring:
           jwk-set-uri: ${JWK_SET_URI:http://localhost:8080/realms/person/protocol/openid-connect/certs}
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
   endpoint:
     health:
+      show-components: always
       probes:
         enabled: true
-    group:
-      readiness:
-        include: readinessState,db
+      group:
+        readiness:
+          include: readinessState,db
 
 springdoc:
   default-produces-media-type: application/json

@@ -196,6 +196,18 @@ Databases created by Hibernate before 3.2.0 have no Flyway history, and Flyway r
 - **Docker Compose:** `docker compose down -v && docker compose up -d`. The `-v` removes the PostgreSQL volume.
 - **Kubernetes:** `k8s/postgres.yaml` has no PersistentVolumeClaim, so the data lives as long as the pod: `kubectl delete pod -l app=postgres` starts with an empty database. If you added a PVC, delete it as well.
 
+### Fake data for UI testing
+`dev/seed-fake-data.sql` adds 250 persons and 2000 tasks (about 10% unassigned) to check how a UI handles larger lists. It always generates the same data, adds it next to existing rows, and adds another full set each time it runs. Run it after the app has started once, so Flyway has created the schema:
+```shell
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U persons -d persons < dev/seed-fake-data.sql
+kubectl exec -i deploy/postgres -- sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < dev/seed-fake-data.sql
+```
+Seed persons have e-mails at `seed.example.com` and seed task titles end with ` #seed`. To remove them, run in `psql`:
+```sql
+DELETE FROM task WHERE title LIKE '% #seed';
+DELETE FROM person WHERE email LIKE '%@seed.example.com';
+```
+
 ## Connect a UI
 A web UI made from [crud-ui-blueprint](https://github.com/mmartofel/crud-ui-blueprint) reads this section in its
 `crud-ui-init` skill. Its `.env.local` for this API's local stack (Keycloak 8080, API 8081, realm `person`):

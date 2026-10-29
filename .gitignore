@@ -50,3 +50,6 @@ nbdist/
 # OS
 .DS_Store
 Thumbs.db
+
+# other
+quay.sh

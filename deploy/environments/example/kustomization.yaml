@@ -1,0 +1,20 @@
+# An environment overlay: copy this folder to deploy/environments/<env>/ (git-ignored, except this example) and deploy
+# with DEPLOY_OVERLAY=deploy/environments/<env> skaffold run -p <target> (README "Deploy"). It starts from a target
+# overlay and changes only what this environment needs.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../overlays/openshift        # or ../../overlays/kubernetes
+patches:
+  # A host of your own for the API's Route (OpenShift generates one otherwise).
+  - target: { kind: Route, name: spring-person-api }
+    patch: |-
+      - op: add
+        path: /spec/host
+        value: api.example.com
+  # A PostgreSQL outside this namespace (its credentials still come from the Secret `postgres`).
+  - target: { kind: ConfigMap, name: spring-person-api-config }
+    patch: |-
+      - op: replace
+        path: /data/DB_HOST
+        value: postgres.databases.svc

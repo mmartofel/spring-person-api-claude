@@ -1,0 +1,7 @@
+# Developer > Topology: the PostgreSQL icon (docs/DEPLOY-CONVENTION.md section 4).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app.openshift.io/runtime: postgresql

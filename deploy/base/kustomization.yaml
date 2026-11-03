@@ -1,0 +1,15 @@
+# PostgreSQL, Keycloak and the API on plain Kubernetes, valid in any cluster and namespace
+# (docs/DEPLOY-CONVENTION.md). No host, registry, namespace or secret value in here: Secrets come from
+# deploy/ensure-secrets.sh, everything per environment from an overlay or Skaffold flags.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - postgres.yaml
+  - keycloak.yaml
+  - configmap.yaml
+  - app.yaml
+# A changed realm.json gets a new ConfigMap name, so Keycloak rolls out and imports it again.
+configMapGenerator:
+  - name: keycloak-realm
+    files:
+      - realm.json

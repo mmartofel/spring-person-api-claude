@@ -18,8 +18,12 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HEALTH_ENABLED: "true"
+      # Fixed demo values for local development only; in a cluster they come from Secrets (deploy/ensure-secrets.sh).
+      PERSON_API_CLIENT_SECRET: person-api-secret
+      DEMO_VIEWER_PASSWORD: viewer
+      DEMO_EDITOR_PASSWORD: editor
     volumes:
-      - ./k8s/realm.json:/opt/keycloak/data/import/realm.json:ro
+      - ./deploy/base/realm.json:/opt/keycloak/data/import/realm.json:ro
     ports:
       - "8080:8080"
     healthcheck:

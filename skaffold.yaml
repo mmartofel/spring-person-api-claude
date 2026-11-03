@@ -1,3 +1,10 @@
+# Builds the image (Jib, no container engine needed) and deploys deploy/overlays/<profile> to the current kube context
+# and namespace (README "Deploy", docs/DEPLOY-CONVENTION.md). Nothing here names a cluster, registry or namespace:
+#   skaffold dev                                                     # local cluster, API on 8081, Keycloak on 8080
+#   skaffold run -p openshift --default-repo=quay.io/<org> -n <ns>   # or -p kubernetes
+#   DEPLOY_OVERLAY=deploy/environments/<env> skaffold run -p ...     # an environment overlay instead of the profile's
+# Run from the repo root. Before each deploy, deploy/ensure-secrets.sh creates the missing Secrets in that namespace.
+# The UI (person-ui-v2) is installed afterwards into the same namespace, from its own repo.
 apiVersion: skaffold/v4beta13
 kind: Config
 metadata:
@@ -6,12 +13,19 @@ build:
   artifacts:
     - image: spring-person-api
       jib: {}
+  tagPolicy:
+    gitCommit: {}
 manifests:
   kustomize:
     paths:
-      - k8s
+      - '{{ default "deploy/overlays/local" .DEPLOY_OVERLAY }}'
 deploy:
-  kubectl: {}
+  kubectl:
+    hooks:
+      before:
+        - host:
+            command: ["sh", "deploy/ensure-secrets.sh"]
+            os: [darwin, linux]
 portForward:
   - resourceType: service
     resourceName: spring-person-api
@@ -22,11 +36,17 @@ portForward:
     port: 8080
     localPort: 8080
 profiles:
-  # OpenShift: the API and Keycloak are exposed by Routes (openshift/), no port forwarding.
   - name: openshift
     patches:
       - op: replace
         path: /manifests/kustomize/paths/0
-        value: openshift
+        value: '{{ default "deploy/overlays/openshift" .DEPLOY_OVERLAY }}'
+      - op: remove
+        path: /portForward
+  - name: kubernetes
+    patches:
+      - op: replace
+        path: /manifests/kustomize/paths/0
+        value: '{{ default "deploy/overlays/kubernetes" .DEPLOY_OVERLAY }}'
       - op: remove
         path: /portForward

@@ -2,6 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: spring-person-api
+  labels:
+    app.kubernetes.io/name: spring-person-api
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: person-app
 spec:
   selector:
     matchLabels:
@@ -16,19 +20,41 @@ spec:
           image: spring-person-api
           ports:
             - containerPort: 8080
+          # Settings from the ConfigMap and the Secrets, combined with $(VAR) (each defined above its use).
           env:
             - name: SERVER_PORT
               value: "8080"
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef: { name: spring-person-api-config, key: DB_HOST }
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef: { name: spring-person-api-config, key: DB_PORT }
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef: { name: postgres, key: database }
             - name: SPRING_DATASOURCE_URL
-              value: jdbc:postgresql://postgres:5432/persons
+              value: jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef: { name: postgres, key: username }
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef: { name: postgres, key: password }
+            - name: KEYCLOAK_URL
+              valueFrom:
+                configMapKeyRef: { name: spring-person-api-config, key: KEYCLOAK_URL }
+            - name: REALM
+              valueFrom:
+                configMapKeyRef: { name: spring-person-api-config, key: REALM }
             - name: JWK_SET_URI
-              value: http://keycloak:8080/realms/person/protocol/openid-connect/certs
+              value: $(KEYCLOAK_URL)/realms/$(REALM)/protocol/openid-connect/certs
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 768Mi
           # Readiness and liveness checks start once the app has started; it takes about 10 s.
           startupProbe:
             httpGet:
@@ -50,6 +76,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: spring-person-api
+  labels:
+    app.kubernetes.io/name: spring-person-api
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: person-app
 spec:
   selector:
     app: spring-person-api

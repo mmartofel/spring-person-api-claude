@@ -1,0 +1,92 @@
+# Keycloak (start-dev) importing the realm from deploy/base/realm.json. No host is configured: behind the UI's nginx
+# (or any proxy that sets X-Forwarded-*) it builds every URL, including the token issuer, from the host the browser
+# used (docs/DEPLOY-CONVENTION.md section 6). Secret values reach the realm import as ${ENV} placeholders.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/component: auth
+    app.kubernetes.io/part-of: person-app
+spec:
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.8.1
+          args: ["start-dev", "--import-realm"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef: { name: keycloak-admin, key: username }
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: keycloak-admin, key: password }
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            # Placeholders in realm.json.
+            - name: PERSON_API_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: spring-person-api-oidc-client, key: client-secret }
+            - name: DEMO_VIEWER_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: spring-person-api-demo-users, key: viewer-password }
+            - name: DEMO_EDITOR_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: spring-person-api-demo-users, key: editor-password }
+          # Health is on the management port. Startup with the realm import takes about 30 s.
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 9000
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/component: auth
+    app.kubernetes.io/part-of: person-app
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - port: 8080

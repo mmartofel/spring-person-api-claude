@@ -1,0 +1,6 @@
+# Kubernetes, any cluster and namespace: the base as is. The stack stays internal; the browser reaches the API and the
+# realm through the UI's host (its Ingress, from the UI repo). An environment overlay may add an Ingress for the API.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base

@@ -53,3 +53,7 @@ Thumbs.db
 
 # other
 quay.sh
+
+# environment overlays hold one environment's hosts and settings (docs/DEPLOY-CONVENTION.md); only the example is kept
+deploy/environments/*
+!deploy/environments/example/

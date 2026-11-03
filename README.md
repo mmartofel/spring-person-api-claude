@@ -9,12 +9,13 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.5.2**
+Version: **3.6.0**
 
 ## Changelog
+- **3.6.0**: Deployment follows [docs/DEPLOY-CONVENTION.md](docs/DEPLOY-CONVENTION.md), shared with the UI repo: `deploy/base` plus overlays `local`, `openshift` and `kubernetes`, with the same Skaffold profiles. Nothing in git names a cluster, host, registry or namespace, and no secret value is in the manifests: `deploy/ensure-secrets.sh` (a Skaffold before-deploy hook) creates the missing Secrets with random values. Keycloak has no Route of its own: browsers reach the realm through the UI's host, and the `person-ui` client accepts any host it is served on (`rootUrl ${authBaseUrl}`, relative redirects). Topology labels, resources and arrows are in the manifests. Migration: `k8s/realm.json` moved to `deploy/base/realm.json`; client secret and demo passwords are `${ENV}` placeholders (Docker Compose sets the old demo values). The API and contract are unchanged.
 - **3.5.2**: Every component has health checks. In Kubernetes and OpenShift, PostgreSQL (`pg_isready`) and Keycloak (`/health/started`, `/health/ready`, `/health/live` on port 9000) have startup, readiness and liveness probes, like the API. In Docker Compose, both services have a healthcheck, and `docker compose up -d --wait` returns once they are usable. The API and contract are unchanged.
 - **3.5.1**: Fix: in Kubernetes and OpenShift, PostgreSQL keeps its data in a PersistentVolumeClaim (`postgres`, 1Gi). Before, every `skaffold run` replaced the pod and emptied the database. The API has a startup probe, so a slow start is not killed and does not log probe failures. Keycloak has a readiness probe (`KC_HEALTH_ENABLED`, `/health/ready` on the management port 9000), so it gets traffic only after it has started and imported the realm; before, token requests failed for a few seconds after a redeploy. The API and contract are unchanged.
-- **3.5.0**: OpenShift deployment: Skaffold profile `openshift` with a Kustomize overlay (`openshift/`) that exposes the API and Keycloak through TLS edge Routes. See [Deploy to OpenShift](#deploy-to-openshift). The API and contract are unchanged.
+- **3.5.0**: OpenShift deployment: Skaffold profile `openshift` with a Kustomize overlay (`openshift/`) that exposes the API and Keycloak through TLS edge Routes. See [Deploy to OpenShift](#deploy-to-kubernetes-and-openshift). The API and contract are unchanged.
 - **3.4.3**: Fix: `/actuator/info` (with `build.version`) is public, and `/actuator/health` lists its components (`db`, `diskSpace`, ...) without details, for the UI footer. Other Actuator endpoints stay protected. The readiness probe now checks the database (its group setting was misplaced and ignored). The contract is unchanged.
 - **3.4.2**: Fix: the contract now marks a task `title` as `minLength: 1`, so the UI rejects an empty title before sending it (it showed `minLength: 0`, because `@Size(max)` overrode `@NotBlank`). An empty required text returns one `required` error, not also `invalid`. No behaviour change otherwise.
 - **3.4.1**: Fix: `PUT /api/tasks/{id}` with a new `assigneeId` saved the change but returned 500. Task writes now run in a transaction. Unexpected errors return Problem Details (500) instead of Spring's default error body. The contract is unchanged.
@@ -182,13 +183,16 @@ The `person-api` service account has the `person-editor` role.
 
 For the browser UI, the realm also has a public client, `person-ui`:
 - Flow: Authorization Code + PKCE.
-- Redirect URI and web origin: `http://localhost:5173`.
-- Demo users (username/password): `viewer`/`viewer` with role `person-viewer`, `editor`/`editor` with role `person-editor`.
+- Redirect URIs: `http://localhost:5173/*` (the UI's dev server) and `/*` relative to `rootUrl ${authBaseUrl}`, so the
+  host the realm is served on (the UI's host in a cluster). Web origins `+`, the origins of the redirect URIs.
+- Demo users: `viewer` with role `person-viewer`, `editor` with role `person-editor`. Their passwords, and the
+  `person-api` client secret, are `${ENV}` placeholders in the realm. Docker Compose sets them to `viewer`, `editor` and
+  `person-api-secret`; a cluster takes them from Secrets (Deploy).
 
 The login page follows the UI language: pass `ui_locales=pl` (or `en`, the default) in the authorization request.
 
 ### Applying changes to the Keycloak realm
-Keycloak imports `k8s/realm.json` with `--import-realm`, which **skips a realm that already exists**. Editing the file does not change a running Keycloak:
+Keycloak imports `deploy/base/realm.json` with `--import-realm`, which **skips a realm that already exists**. Editing the file does not change a running Keycloak:
 - **Docker Compose:** run `docker compose up -d --force-recreate keycloak`. Keycloak in `start-dev` keeps its data inside the container, so the new container imports the realm from scratch. Users and settings added in the Admin Console are lost.
 - **Kubernetes / Skaffold:** Kustomize's `configMapGenerator` adds a content hash to the ConfigMap name. A changed `realm.json` therefore rolls out a new Keycloak pod, which imports the realm again. `skaffold dev` does this on save.
 
@@ -197,7 +201,7 @@ Flyway creates and upgrades the schema at startup from `src/main/resources/db/mi
 
 Databases created by Hibernate before 3.2.0 have no Flyway history, and Flyway refuses to migrate a non-empty schema without one. Recreate them (this deletes the data):
 - **Docker Compose:** `docker compose down -v && docker compose up -d`. The `-v` removes the PostgreSQL volume.
-- **Kubernetes / OpenShift:** the data lives in the PersistentVolumeClaim `postgres` and survives redeploys. To start with an empty database, run `kubectl scale deploy/postgres --replicas=0`, then `kubectl delete pvc postgres`, then `skaffold run` (add `-p openshift` on OpenShift).
+- **Kubernetes / OpenShift:** the data lives in the PersistentVolumeClaim `postgres` and survives redeploys. To start with an empty database, run `kubectl scale deploy/postgres --replicas=0`, then `kubectl delete pvc postgres`, then `skaffold run` again with the same profile.
 
 ### Fake data for UI testing
 `dev/seed-fake-data.sql` adds 250 persons and 2000 tasks (about 10% unassigned) to check how a UI handles larger lists. It always generates the same data, adds it next to existing rows, and adds another full set each time it runs. Run it after the app has started once, so Flyway has created the schema:
@@ -225,46 +229,67 @@ E2E_WRITER_PASSWORD=editor
 E2E_READER_USER=viewer
 E2E_READER_PASSWORD=viewer
 ```
-Read role `person-viewer`, write role `person-editor` (realm roles, in `realm_access.roles` of the access token). In
-Kubernetes the UI's `API_UPSTREAM` is `http://spring-person-api:8080` (the Service in `k8s/app.yaml`). The UI footer reads the public
+Read role `person-viewer`, write role `person-editor` (realm roles, in `realm_access.roles` of the access token). In a
+cluster, the UI's defaults fit this stack in the same namespace: `API_UPSTREAM=http://spring-person-api:8080`,
+`OIDC_UPSTREAM=http://keycloak:8080` and `OIDC_AUTHORITY=/realms/person`. Its nginx serves the realm on the UI's
+host, so the browser needs no Keycloak host (see Deploy). The UI footer reads the public
 `/actuator/health` (components) and `/actuator/info` (`build.version`) without a token.
 
-## Deploy to Kubernetes
+## Deploy to Kubernetes and OpenShift
+The API repo and the UI repo ([person-ui-v2](https://github.com/mmartofel/person-ui-v2)) deploy the same way: Skaffold
+with kustomize overlays, by [docs/DEPLOY-CONVENTION.md](docs/DEPLOY-CONVENTION.md). Nothing in git names a cluster,
+host, registry or namespace. Install this repo first, then the UI from its repo, into the same namespace:
 ```shell
-skaffold dev                                  # local cluster, e.g. minikube or kind
-skaffold run --default-repo=<your-registry>   # remote cluster
+skaffold run -p openshift --default-repo=quay.io/<org> -n <namespace>   # PostgreSQL, Keycloak, API (or -p kubernetes)
 ```
-Jib builds the image without a Docker daemon. The manifests in `k8s/` (PostgreSQL, Keycloak, the app) go through Kustomize. Skaffold forwards the API to `localhost:8081` and Keycloak to `localhost:8080`, so the curl commands above work unchanged.
+Then, in person-ui-v2, the same line installs the UI. Sign-in is on the UI's Route or Ingress host.
 
-The Keycloak realm is defined once, in `k8s/realm.json`, and used by both Docker Compose and Kubernetes. The client secret, demo user passwords and DB credentials are demo values; replace them for any real environment.
+| Path | What |
+|---|---|
+| `deploy/base/` | PostgreSQL (PVC `postgres`, 1Gi), Keycloak (`start-dev`, realm `realm.json`), the API and its ConfigMap `spring-person-api-config` (`DB_HOST`, `DB_PORT`, `KEYCLOAK_URL`, `REALM`); probes, resources, `app.kubernetes.io/*` labels |
+| `deploy/overlays/local/` | default profile, a local cluster: API forwarded to `localhost:8081`, Keycloak to `localhost:8080` |
+| `deploy/overlays/openshift/` | a Route for the API (Swagger UI, machine clients; generated host) and the Topology view's icons and arrows |
+| `deploy/overlays/kubernetes/` | the base as is: the stack stays internal, the UI's Ingress is its public entry |
+| `deploy/environments/<env>/` | git-ignored, see `example/`: one environment's hosts or settings, `DEPLOY_OVERLAY=deploy/environments/<env> skaffold run -p ...` |
+| `deploy/ensure-secrets.sh` | Skaffold's before-deploy hook: creates the missing Secrets |
 
-### Deploy to OpenShift
-The `openshift` profile deploys the same PostgreSQL, Keycloak and API, through the Kustomize overlay `openshift/`. The overlay adds two things to `k8s/`:
-- Routes for the API and Keycloak, with TLS edge termination. Plain HTTP redirects to HTTPS. PostgreSQL stays internal.
-- `KC_PROXY_HEADERS=xforwarded` for Keycloak, so that behind the Route it issues `https://` URLs (token `iss`, login pages).
+- **Secrets.** Before each deploy, `deploy/ensure-secrets.sh` creates any of these that is missing in the namespace,
+  with random values: `postgres` (database, username, password), `keycloak-admin`, `spring-person-api-oidc-client`
+  (the `person-api` client secret) and `spring-person-api-demo-users` (passwords of `viewer` and `editor`). It never
+  changes an existing Secret, because PostgreSQL keeps the password of its first start. Keycloak takes the client
+  secret and the demo passwords into the realm through `${ENV}` placeholders. To choose the test users' passwords,
+  set them on the first deploy: `DEMO_EDITOR_PASSWORD=... DEMO_VIEWER_PASSWORD=... skaffold run ...`. To read them:
+  `kubectl get secret spring-person-api-demo-users -o jsonpath='{.data.editor-password}' | base64 -d`.
+- **Keycloak.** It runs with `KC_PROXY_HEADERS=xforwarded` and no fixed hostname, and has no Route: browsers reach
+  `/realms/person` through the UI's host, whose nginx proxies it. The `person-ui` client has `rootUrl ${authBaseUrl}`
+  and relative redirect URIs, so it accepts the host it is served on, whatever the cluster gives it. Tokens issued
+  there carry `iss=https://<ui host>/realms/person`. The API checks them against the JWK set inside the cluster.
+- **Image.** Jib builds and pushes it straight to `--default-repo`, with no Docker or Podman. It reads registry
+  credentials from `~/.docker/config.json`, not from Podman's `auth.json`. With a Quay.io robot account:
+  ```shell
+  echo "$QUAY_TOKEN" | podman login quay.io -u "$QUAY_USER" --password-stdin --authfile ~/.docker/config.json
+  ```
+  - `--default-repo` is the registry path `quay.io/<namespace>`, not the web page `quay.io/repository/<namespace>`.
+  - A robot account usually cannot create a repository: create `spring-person-api` in Quay first, and make it public or
+    give the namespace a pull secret, otherwise the pod stays in `ImagePullBackOff`.
+  - Skaffold's warning `Could not get docker context` is harmless.
+- **Topology.** In the OpenShift console, the stack is the `person-app` group: Spring, PostgreSQL and Keycloak icons,
+  arrows from the API to PostgreSQL and Keycloak, and a link to the source. Add the version label with
+  `--label app.kubernetes.io/version=$(git rev-parse --short HEAD)`.
+- `skaffold dev` deploys to a local cluster and forwards the ports, so the curl commands above work unchanged.
+- `skaffold delete -p openshift -n <namespace>` removes what this repo installed, including the database volume. The
+  Secrets stay; delete them with `kubectl delete secret -l app.kubernetes.io/part-of=person-app`.
 
-The profile does not forward ports. The Routes get generated hosts: `<name>-<project>.apps.<cluster domain>`.
-
-Jib pushes the API image straight to a registry, so neither Docker nor Podman builds it. Skaffold's warning `Could not get docker context` is harmless. Jib reads registry credentials from `~/.docker/config.json`, not from Podman's `auth.json`. The example uses a Quay.io robot account:
-```shell
-oc new-project person-api                     # or any project of your own
-echo "$QUAY_TOKEN" | podman login quay.io -u "$QUAY_USER" --password-stdin --authfile ~/.docker/config.json
-skaffold run -p openshift --default-repo=quay.io/<namespace>
-oc get route                                  # spring-person-api and keycloak hosts
-```
-- `--default-repo` is the registry path, `quay.io/<namespace>`. It is not the web page URL `quay.io/repository/<namespace>`.
-- A robot account usually cannot create a repository. Create `spring-person-api` in Quay first and give the robot write access.
-- Make the repository public, or add a pull secret to the project. Otherwise the pod stays in `ImagePullBackOff`.
-
-Get a token and call the API through the Routes:
+A machine-client token through the API's Route (Keycloak in the cluster, reached with a port-forward):
 ```shell
 API=https://$(oc get route spring-person-api -o jsonpath='{.spec.host}')
-KC=https://$(oc get route keycloak -o jsonpath='{.spec.host}')
-TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=person-api -d client_secret=person-api-secret \
-  $KC/realms/person/protocol/openid-connect/token | jq -r .access_token)
+SECRET=$(oc get secret spring-person-api-oidc-client -o jsonpath='{.data.client-secret}' | base64 -d)
+oc port-forward svc/keycloak 18080:8080 >/dev/null & sleep 2
+TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=person-api -d client_secret=$SECRET \
+  http://localhost:18080/realms/person/protocol/openid-connect/token | jq -r .access_token)
 curl -H "Authorization: Bearer $TOKEN" "$API/api/persons"
 ```
-The API validates tokens against Keycloak's JWK set inside the cluster (`http://keycloak:8080`), not against the issuer, so a token issued through the Keycloak Route is accepted. Swagger UI is at `$API/swagger-ui.html`, with `https` server URLs. `skaffold delete -p openshift` removes the deployment, including the database volume.
+Swagger UI is at `$API/swagger-ui.html`, with `https` server URLs.
 
 ## Tests
 ```shell

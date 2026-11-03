@@ -1,0 +1,21 @@
+# The API's public host for Swagger UI and machine clients. No spec.host: OpenShift generates one
+# (spring-person-api-<namespace>.<apps domain>); an environment overlay sets it for a host of its own.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: spring-person-api
+  labels:
+    app.kubernetes.io/name: spring-person-api
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: person-app
+  annotations:
+    haproxy.router.openshift.io/hsts_header: max-age=31536000
+spec:
+  to:
+    kind: Service
+    name: spring-person-api
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

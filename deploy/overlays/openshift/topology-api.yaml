@@ -1,0 +1,14 @@
+# Developer > Topology: runtime icons, the source link and the arrows from each caller to what it calls (each repo
+# declares only its own, docs/DEPLOY-CONVENTION.md section 4; the UI repo adds UI -> API and UI -> Keycloak).
+# Deployment metadata only: selectors are immutable. The console has no Keycloak icon, so it carries its logo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spring-person-api
+  labels:
+    app.openshift.io/runtime: spring
+  annotations:
+    app.openshift.io/connects-to: >-
+      [{"apiVersion":"apps/v1","kind":"Deployment","name":"postgres"},
+      {"apiVersion":"apps/v1","kind":"Deployment","name":"keycloak"}]
+    app.openshift.io/vcs-uri: https://github.com/mmartofel/spring-person-api-claude

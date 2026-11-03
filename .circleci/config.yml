@@ -17,6 +17,13 @@ jobs:
           name: Build and test
           command: mvn -B verify
       - run:
+          name: Render every deploy overlay (docs/DEPLOY-CONVENTION.md)
+          command: |
+            curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.7.1/kustomize_v5.7.1_linux_amd64.tar.gz" | tar -xz -C /tmp
+            for dir in deploy/overlays/* deploy/environments/example; do
+              echo "== $dir"; /tmp/kustomize build "$dir" > /dev/null
+            done
+      - run:
           name: Check the OpenAPI contract is committed
           command: git status --porcelain contract/ && test -z "$(git status --porcelain contract/)"
       - save_cache:

@@ -1,0 +1,6 @@
+# Local cluster (kind, minikube, Docker Desktop), Skaffold's default profile: the base as is. Skaffold forwards the
+# API to localhost:8081 and Keycloak to localhost:8080, as Docker Compose does.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base

@@ -2,12 +2,21 @@
   "realm": "person",
   "enabled": true,
   "internationalizationEnabled": true,
-  "supportedLocales": ["en", "pl"],
+  "supportedLocales": [
+    "en",
+    "pl"
+  ],
   "defaultLocale": "en",
   "roles": {
     "realm": [
-      { "name": "person-viewer", "description": "Read persons" },
-      { "name": "person-editor", "description": "Read, create, update and delete persons" }
+      {
+        "name": "person-viewer",
+        "description": "Read persons"
+      },
+      {
+        "name": "person-editor",
+        "description": "Read, create, update and delete persons"
+      }
     ]
   },
   "clients": [
@@ -15,7 +24,7 @@
       "clientId": "person-api",
       "enabled": true,
       "publicClient": false,
-      "secret": "person-api-secret",
+      "secret": "${PERSON_API_CLIENT_SECRET}",
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false
@@ -26,12 +35,18 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost:5173/*"],
-      "webOrigins": ["http://localhost:5173"],
+      "redirectUris": [
+        "/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:5173/*"
-      }
+        "post.logout.redirect.uris": "/*##http://localhost:5173/*"
+      },
+      "rootUrl": "${authBaseUrl}"
     }
   ],
   "users": [
@@ -39,7 +54,9 @@
       "username": "service-account-person-api",
       "enabled": true,
       "serviceAccountClientId": "person-api",
-      "realmRoles": ["person-editor"]
+      "realmRoles": [
+        "person-editor"
+      ]
     },
     {
       "username": "viewer",
@@ -48,8 +65,16 @@
       "emailVerified": true,
       "firstName": "Demo",
       "lastName": "Viewer",
-      "credentials": [{ "type": "password", "value": "viewer", "temporary": false }],
-      "realmRoles": ["person-viewer"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_VIEWER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "person-viewer"
+      ]
     },
     {
       "username": "editor",
@@ -58,8 +83,16 @@
       "emailVerified": true,
       "firstName": "Demo",
       "lastName": "Editor",
-      "credentials": [{ "type": "password", "value": "editor", "temporary": false }],
-      "realmRoles": ["person-editor"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_EDITOR_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "person-editor"
+      ]
     }
   ]
 }

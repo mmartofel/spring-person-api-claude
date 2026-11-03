@@ -21,3 +21,12 @@ portForward:
     resourceName: keycloak
     port: 8080
     localPort: 8080
+profiles:
+  # OpenShift: the API and Keycloak are exposed by Routes (openshift/), no port forwarding.
+  - name: openshift
+    patches:
+      - op: replace
+        path: /manifests/kustomize/paths/0
+        value: openshift
+      - op: remove
+        path: /portForward

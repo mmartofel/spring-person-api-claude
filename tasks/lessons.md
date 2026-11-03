@@ -28,3 +28,7 @@ Patterns learned from user corrections. Review at session start; add a rule afte
 ## Test every transition of a relation against the real database
 - **Mistake:** `PUT /api/tasks/{id}` loaded the task outside a transaction (`open-in-view` is off), so `save` merged a detached entity and the new assignee became an uninitialized proxy. Mapping the response threw `LazyInitializationException`, and the client got 500 with Spring's default body. Tests covered setting an assignee on create and clearing it on update, never changing it, and the mocked unit tests cannot see JPA proxies.
 - **Rule:** Write endpoints that map a relation run in `@Transactional` (`saveAndFlush` on update). Integration tests cover none → A, A → B and A → none. A catch-all handler keeps unexpected errors in Problem Details.
+
+## Advise for the target platform, not the README default
+- **Mistake:** For an OpenShift deployment I recommended `skaffold run --port-forward` from the README. On OpenShift the API and Keycloak are exposed by Routes; port forwarding only fits a local cluster.
+- **Rule:** Before giving deployment steps, check the target (`oc whoami --show-server`, ingress domain) and use its native exposure (Routes on OpenShift, `-p openshift`). OpenShift-only kinds stay in the `openshift/` overlay, never in the shared `k8s/` base.

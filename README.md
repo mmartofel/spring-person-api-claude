@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.4.3**
+Version: **3.5.0**
 
 ## Changelog
+- **3.5.0**: OpenShift deployment: Skaffold profile `openshift` with a Kustomize overlay (`openshift/`) that exposes the API and Keycloak through TLS edge Routes. See [Deploy to OpenShift](#deploy-to-openshift). The API and contract are unchanged.
 - **3.4.3**: Fix: `/actuator/info` (with `build.version`) is public, and `/actuator/health` lists its components (`db`, `diskSpace`, ...) without details, for the UI footer. Other Actuator endpoints stay protected. The readiness probe now checks the database (its group setting was misplaced and ignored). The contract is unchanged.
 - **3.4.2**: Fix: the contract now marks a task `title` as `minLength: 1`, so the UI rejects an empty title before sending it (it showed `minLength: 0`, because `@Size(max)` overrode `@NotBlank`). An empty required text returns one `required` error, not also `invalid`. No behaviour change otherwise.
 - **3.4.1**: Fix: `PUT /api/tasks/{id}` with a new `assigneeId` saved the change but returned 500. Task writes now run in a transaction. Unexpected errors return Problem Details (500) instead of Spring's default error body. The contract is unchanged.
@@ -50,7 +51,7 @@ A Spring Boot 4 REST API for managing `Person` and `Task` records, stored in Pos
 - Spring Security OAuth2 Resource Server (JWT, validated against Keycloak's JWK set)
 - Keycloak 26.8.1, realm `person`: confidential client `person-api`, public client `person-ui` (Authorization Code + PKCE)
 - springdoc-openapi 3.1.1 (OpenAPI contract + Swagger UI)
-- Jib + Skaffold + Kustomize for Kubernetes
+- Jib + Skaffold + Kustomize for Kubernetes and OpenShift
 - JUnit 5, MockMvc, Testcontainers; CircleCI
 
 ## API
@@ -234,6 +235,34 @@ skaffold run --default-repo=<your-registry>   # remote cluster
 Jib builds the image without a Docker daemon. The manifests in `k8s/` (PostgreSQL, Keycloak, the app) go through Kustomize. Skaffold forwards the API to `localhost:8081` and Keycloak to `localhost:8080`, so the curl commands above work unchanged.
 
 The Keycloak realm is defined once, in `k8s/realm.json`, and used by both Docker Compose and Kubernetes. The client secret, demo user passwords and DB credentials are demo values; replace them for any real environment.
+
+### Deploy to OpenShift
+The `openshift` profile deploys the same PostgreSQL, Keycloak and API, through the Kustomize overlay `openshift/`. The overlay adds two things to `k8s/`:
+- Routes for the API and Keycloak, with TLS edge termination. Plain HTTP redirects to HTTPS. PostgreSQL stays internal.
+- `KC_PROXY_HEADERS=xforwarded` for Keycloak, so that behind the Route it issues `https://` URLs (token `iss`, login pages).
+
+The profile does not forward ports. The Routes get generated hosts: `<name>-<project>.apps.<cluster domain>`.
+
+Jib pushes the API image straight to a registry, so neither Docker nor Podman builds it. Jib reads registry credentials from `~/.docker/config.json`, not from Podman's `auth.json`. The example uses a Quay.io robot account:
+```shell
+oc new-project person-api                     # or any project of your own
+echo "$QUAY_TOKEN" | podman login quay.io -u "$QUAY_USER" --password-stdin --authfile ~/.docker/config.json
+skaffold run -p openshift --default-repo=quay.io/<namespace>
+oc get route                                  # spring-person-api and keycloak hosts
+```
+- `--default-repo` is the registry path, `quay.io/<namespace>`. It is not the web page URL `quay.io/repository/<namespace>`.
+- A robot account usually cannot create a repository. Create `spring-person-api` in Quay first and give the robot write access.
+- Make the repository public, or add a pull secret to the project. Otherwise the pod stays in `ImagePullBackOff`.
+
+Get a token and call the API through the Routes:
+```shell
+API=https://$(oc get route spring-person-api -o jsonpath='{.spec.host}')
+KC=https://$(oc get route keycloak -o jsonpath='{.spec.host}')
+TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=person-api -d client_secret=person-api-secret \
+  $KC/realms/person/protocol/openid-connect/token | jq -r .access_token)
+curl -H "Authorization: Bearer $TOKEN" "$API/api/persons"
+```
+The API validates tokens against Keycloak's JWK set inside the cluster (`http://keycloak:8080`), not against the issuer, so a token issued through the Keycloak Route is accepted. Swagger UI is at `$API/swagger-ui.html`, with `https` server URLs. `skaffold delete -p openshift` removes the deployment.
 
 ## Tests
 ```shell

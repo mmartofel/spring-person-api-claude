@@ -32,3 +32,7 @@ Patterns learned from user corrections. Review at session start; add a rule afte
 ## Advise for the target platform, not the README default
 - **Mistake:** For an OpenShift deployment I recommended `skaffold run --port-forward` from the README. On OpenShift the API and Keycloak are exposed by Routes; port forwarding only fits a local cluster.
 - **Rule:** Before giving deployment steps, check the target (`oc whoami --show-server`, ingress domain) and use its native exposure (Routes on OpenShift, `-p openshift`). OpenShift-only kinds stay in the `openshift/` overlay, never in the shared `k8s/` base.
+
+## Prove a health check can fail
+- **Mistake:** A Compose healthcheck written as `["CMD", "bash", "-c", "<script>"]` was split on spaces by Podman, so it ran `bash -c exec` and reported Keycloak healthy before it started. A new PostgreSQL startup probe with a 5 s delay made the API connect before the database was ready, and the API restarted once.
+- **Rule:** Write shell healthchecks as `["CMD-SHELL", "<script>"]`. After adding any probe or healthcheck, check its log shows failures before the service is up (`podman inspect --format '{{json .State.Health}}'`, Warning events), and check that dependent pods show no restarts.

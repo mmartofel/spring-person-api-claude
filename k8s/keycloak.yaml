@@ -24,13 +24,24 @@ spec:
               value: admin
             - name: KC_HEALTH_ENABLED
               value: "true"
-          # Receive traffic only after the realm import (about 30 s); health is on the management port.
+          # Health is on the management port. Startup with the realm import takes about 30 s.
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            failureThreshold: 24
           readinessProbe:
             httpGet:
               path: /health/ready
               port: 9000
-            initialDelaySeconds: 30
             periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 9000
+            periodSeconds: 10
           volumeMounts:
             - name: realm
               mountPath: /opt/keycloak/data/import

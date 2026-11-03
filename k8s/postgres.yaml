@@ -48,6 +48,24 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef: { name: postgres, key: password }
+          # pg_isready over TCP: during the first initdb the server listens only on the Unix socket.
+          # Ready quickly (about 1 s with existing data), as the API connects about 4 s after its start.
+          startupProbe:
+            exec:
+              command: ["sh", "-c", 'pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            initialDelaySeconds: 2
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", 'pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", 'pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql

@@ -7,13 +7,23 @@ services:
       POSTGRES_PASSWORD: persons
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "persons", "-d", "persons"]
+      interval: 5s
+      start_period: 10s
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.1
     command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
     volumes:
       - ./k8s/realm.json:/opt/keycloak/data/import/realm.json:ro
     ports:
       - "8080:8080"
+    healthcheck:
+      # The image has no curl: ask /health/ready on the management port through /dev/tcp (sh is bash).
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      start_period: 60s

@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.5.1**
+Version: **3.5.2**
 
 ## Changelog
+- **3.5.2**: Every component has health checks. In Kubernetes and OpenShift, PostgreSQL (`pg_isready`) and Keycloak (`/health/started`, `/health/ready`, `/health/live` on port 9000) have startup, readiness and liveness probes, like the API. In Docker Compose, both services have a healthcheck, and `docker compose up -d --wait` returns once they are usable. The API and contract are unchanged.
 - **3.5.1**: Fix: in Kubernetes and OpenShift, PostgreSQL keeps its data in a PersistentVolumeClaim (`postgres`, 1Gi). Before, every `skaffold run` replaced the pod and emptied the database. The API has a startup probe, so a slow start is not killed and does not log probe failures. Keycloak has a readiness probe (`KC_HEALTH_ENABLED`, `/health/ready` on the management port 9000), so it gets traffic only after it has started and imported the realm; before, token requests failed for a few seconds after a redeploy. The API and contract are unchanged.
 - **3.5.0**: OpenShift deployment: Skaffold profile `openshift` with a Kustomize overlay (`openshift/`) that exposes the API and Keycloak through TLS edge Routes. See [Deploy to OpenShift](#deploy-to-openshift). The API and contract are unchanged.
 - **3.4.3**: Fix: `/actuator/info` (with `build.version`) is public, and `/actuator/health` lists its components (`db`, `diskSpace`, ...) without details, for the UI footer. Other Actuator endpoints stay protected. The readiness probe now checks the database (its group setting was misplaced and ignored). The contract is unchanged.
@@ -159,7 +160,7 @@ The contract for the Web UI is committed in `contract/openapi.json`. `mvn clean 
 
 ## Run locally
 ```shell
-docker compose up -d          # PostgreSQL on 5432, Keycloak on 8080
+docker compose up -d --wait   # PostgreSQL on 5432, Keycloak on 8080; waits until both are healthy
 mvn spring-boot:run           # API on 8081
 
 TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=person-api -d client_secret=person-api-secret \

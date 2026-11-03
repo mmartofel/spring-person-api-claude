@@ -22,6 +22,15 @@ spec:
               value: admin
             - name: KC_BOOTSTRAP_ADMIN_PASSWORD
               value: admin
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+          # Receive traffic only after the realm import (about 30 s); health is on the management port.
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 5
           volumeMounts:
             - name: realm
               mountPath: /opt/keycloak/data/import

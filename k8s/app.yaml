@@ -29,6 +29,14 @@ spec:
                 secretKeyRef: { name: postgres, key: password }
             - name: JWK_SET_URI
               value: http://keycloak:8080/realms/person/protocol/openid-connect/certs
+          # Readiness and liveness checks start once the app has started; it takes about 10 s.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 24
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
@@ -37,7 +45,6 @@ spec:
             httpGet:
               path: /actuator/health/liveness
               port: 8080
-            initialDelaySeconds: 30
 ---
 apiVersion: v1
 kind: Service

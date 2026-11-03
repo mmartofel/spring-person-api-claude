@@ -7,11 +7,24 @@ stringData:
   username: persons
   password: persons
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
 spec:
+  # The volume is ReadWriteOnce: stop the old pod before the new one mounts it.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: postgres
@@ -35,6 +48,13 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef: { name: postgres, key: password }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres
 ---
 apiVersion: v1
 kind: Service

@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.5.0**
+Version: **3.5.1**
 
 ## Changelog
+- **3.5.1**: Fix: in Kubernetes and OpenShift, PostgreSQL keeps its data in a PersistentVolumeClaim (`postgres`, 1Gi). Before, every `skaffold run` replaced the pod and emptied the database. The API has a startup probe, so a slow start is not killed and does not log probe failures. The API and contract are unchanged.
 - **3.5.0**: OpenShift deployment: Skaffold profile `openshift` with a Kustomize overlay (`openshift/`) that exposes the API and Keycloak through TLS edge Routes. See [Deploy to OpenShift](#deploy-to-openshift). The API and contract are unchanged.
 - **3.4.3**: Fix: `/actuator/info` (with `build.version`) is public, and `/actuator/health` lists its components (`db`, `diskSpace`, ...) without details, for the UI footer. Other Actuator endpoints stay protected. The readiness probe now checks the database (its group setting was misplaced and ignored). The contract is unchanged.
 - **3.4.2**: Fix: the contract now marks a task `title` as `minLength: 1`, so the UI rejects an empty title before sending it (it showed `minLength: 0`, because `@Size(max)` overrode `@NotBlank`). An empty required text returns one `required` error, not also `invalid`. No behaviour change otherwise.
@@ -195,7 +196,7 @@ Flyway creates and upgrades the schema at startup from `src/main/resources/db/mi
 
 Databases created by Hibernate before 3.2.0 have no Flyway history, and Flyway refuses to migrate a non-empty schema without one. Recreate them (this deletes the data):
 - **Docker Compose:** `docker compose down -v && docker compose up -d`. The `-v` removes the PostgreSQL volume.
-- **Kubernetes:** `k8s/postgres.yaml` has no PersistentVolumeClaim, so the data lives as long as the pod: `kubectl delete pod -l app=postgres` starts with an empty database. If you added a PVC, delete it as well.
+- **Kubernetes / OpenShift:** the data lives in the PersistentVolumeClaim `postgres` and survives redeploys. To start with an empty database, run `kubectl scale deploy/postgres --replicas=0`, then `kubectl delete pvc postgres`, then `skaffold run` (add `-p openshift` on OpenShift).
 
 ### Fake data for UI testing
 `dev/seed-fake-data.sql` adds 250 persons and 2000 tasks (about 10% unassigned) to check how a UI handles larger lists. It always generates the same data, adds it next to existing rows, and adds another full set each time it runs. Run it after the app has started once, so Flyway has created the schema:
@@ -243,7 +244,7 @@ The `openshift` profile deploys the same PostgreSQL, Keycloak and API, through t
 
 The profile does not forward ports. The Routes get generated hosts: `<name>-<project>.apps.<cluster domain>`.
 
-Jib pushes the API image straight to a registry, so neither Docker nor Podman builds it. Jib reads registry credentials from `~/.docker/config.json`, not from Podman's `auth.json`. The example uses a Quay.io robot account:
+Jib pushes the API image straight to a registry, so neither Docker nor Podman builds it. Skaffold's warning `Could not get docker context` is harmless. Jib reads registry credentials from `~/.docker/config.json`, not from Podman's `auth.json`. The example uses a Quay.io robot account:
 ```shell
 oc new-project person-api                     # or any project of your own
 echo "$QUAY_TOKEN" | podman login quay.io -u "$QUAY_USER" --password-stdin --authfile ~/.docker/config.json
@@ -262,7 +263,7 @@ TOKEN=$(curl -s -d grant_type=client_credentials -d client_id=person-api -d clie
   $KC/realms/person/protocol/openid-connect/token | jq -r .access_token)
 curl -H "Authorization: Bearer $TOKEN" "$API/api/persons"
 ```
-The API validates tokens against Keycloak's JWK set inside the cluster (`http://keycloak:8080`), not against the issuer, so a token issued through the Keycloak Route is accepted. Swagger UI is at `$API/swagger-ui.html`, with `https` server URLs. `skaffold delete -p openshift` removes the deployment.
+The API validates tokens against Keycloak's JWK set inside the cluster (`http://keycloak:8080`), not against the issuer, so a token issued through the Keycloak Route is accepted. Swagger UI is at `$API/swagger-ui.html`, with `https` server URLs. `skaffold delete -p openshift` removes the deployment, including the database volume.
 
 ## Tests
 ```shell

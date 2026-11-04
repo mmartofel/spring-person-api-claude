@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.6.0**
+Version: **3.6.1**
 
 ## Changelog
+- **3.6.1**: In Kubernetes and OpenShift, the test users `viewer` and `editor` get the same passwords as in Docker Compose (`viewer`, `editor`) instead of random ones, so every environment signs in the same way. A publicly reachable cluster should choose its own on the first deploy: `DEMO_EDITOR_PASSWORD=... DEMO_VIEWER_PASSWORD=... skaffold run ...`. Database, Keycloak admin and client secret stay random. An existing `spring-person-api-demo-users` Secret is kept; to switch, delete it, run `skaffold run` again and restart Keycloak (`kubectl rollout restart deploy/keycloak`). The API and contract are unchanged.
 - **3.6.0**: Deployment follows [docs/DEPLOY-CONVENTION.md](docs/DEPLOY-CONVENTION.md), shared with the UI repo: `deploy/base` plus overlays `local`, `openshift` and `kubernetes`, with the same Skaffold profiles. Nothing in git names a cluster, host, registry or namespace, and no secret value is in the manifests: `deploy/ensure-secrets.sh` (a Skaffold before-deploy hook) creates the missing Secrets with random values. Keycloak has no Route of its own: browsers reach the realm through the UI's host, and the `person-ui` client accepts any host it is served on (`rootUrl ${authBaseUrl}`, relative redirects). Topology labels, resources and arrows are in the manifests. Migration: `k8s/realm.json` moved to `deploy/base/realm.json`; client secret and demo passwords are `${ENV}` placeholders (Docker Compose sets the old demo values). The API and contract are unchanged.
 - **3.5.2**: Every component has health checks. In Kubernetes and OpenShift, PostgreSQL (`pg_isready`) and Keycloak (`/health/started`, `/health/ready`, `/health/live` on port 9000) have startup, readiness and liveness probes, like the API. In Docker Compose, both services have a healthcheck, and `docker compose up -d --wait` returns once they are usable. The API and contract are unchanged.
 - **3.5.1**: Fix: in Kubernetes and OpenShift, PostgreSQL keeps its data in a PersistentVolumeClaim (`postgres`, 1Gi). Before, every `skaffold run` replaced the pod and emptied the database. The API has a startup probe, so a slow start is not killed and does not log probe failures. Keycloak has a readiness probe (`KC_HEALTH_ENABLED`, `/health/ready` on the management port 9000), so it gets traffic only after it has started and imported the realm; before, token requests failed for a few seconds after a redeploy. The API and contract are unchanged.
@@ -254,11 +255,12 @@ Then, in person-ui-v2, the same line installs the UI. Sign-in is on the UI's Rou
 | `deploy/ensure-secrets.sh` | Skaffold's before-deploy hook: creates the missing Secrets |
 
 - **Secrets.** Before each deploy, `deploy/ensure-secrets.sh` creates any of these that is missing in the namespace,
-  with random values: `postgres` (database, username, password), `keycloak-admin`, `spring-person-api-oidc-client`
-  (the `person-api` client secret) and `spring-person-api-demo-users` (passwords of `viewer` and `editor`). It never
-  changes an existing Secret, because PostgreSQL keeps the password of its first start. Keycloak takes the client
-  secret and the demo passwords into the realm through `${ENV}` placeholders. To choose the test users' passwords,
-  set them on the first deploy: `DEMO_EDITOR_PASSWORD=... DEMO_VIEWER_PASSWORD=... skaffold run ...`. To read them:
+  with random values: `postgres` (database, username, password), `keycloak-admin` and `spring-person-api-oidc-client`
+  (the `person-api` client secret). `spring-person-api-demo-users` gets the passwords of the test users, `viewer` and
+  `editor`, the same as their names, as in Docker Compose. It never changes an existing Secret, because PostgreSQL
+  keeps the password of its first start. Keycloak takes the client secret and the demo passwords into the realm
+  through `${ENV}` placeholders. A publicly reachable cluster should choose other test passwords on the first deploy:
+  `DEMO_EDITOR_PASSWORD=... DEMO_VIEWER_PASSWORD=... skaffold run ...`. To read them:
   `kubectl get secret spring-person-api-demo-users -o jsonpath='{.data.editor-password}' | base64 -d`.
 - **Keycloak.** It runs with `KC_PROXY_HEADERS=xforwarded` and no fixed hostname, and has no Route: browsers reach
   `/realms/person` through the UI's host, whose nginx proxies it. The `person-ui` client has `rootUrl ${authBaseUrl}`

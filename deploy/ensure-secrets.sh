@@ -1,8 +1,9 @@
 #!/bin/sh
 # Skaffold before-deploy hook (skaffold.yaml): creates the stack's Secrets that do not exist yet in the deploy's
-# namespace, with random values, so no secret value is in git and `skaffold run` needs no step before it
-# (docs/DEPLOY-CONVENTION.md section 5). An existing Secret is never changed: PostgreSQL keeps the password of its
-# first start. Test user passwords can be chosen on first creation: DEMO_EDITOR_PASSWORD=... DEMO_VIEWER_PASSWORD=...
+# namespace, so `skaffold run` needs no step before it (docs/DEPLOY-CONVENTION.md section 5). The database, Keycloak
+# admin and client secret get random values; the test users get the same passwords as in Docker Compose (`viewer`,
+# `editor`) unless DEMO_VIEWER_PASSWORD / DEMO_EDITOR_PASSWORD are set, which a publicly reachable cluster should do.
+# An existing Secret is never changed: PostgreSQL keeps the password of its first start.
 set -eu
 
 context=${SKAFFOLD_KUBE_CONTEXT:-$(kubectl config current-context)}
@@ -33,6 +34,6 @@ ensure postgres database=persons username=persons "password=$(random)"
 ensure keycloak-admin username=admin "password=$(random)"
 ensure spring-person-api-oidc-client "client-secret=$(random)"
 ensure spring-person-api-demo-users \
-  "viewer-password=${DEMO_VIEWER_PASSWORD:-$(random)}" "editor-password=${DEMO_EDITOR_PASSWORD:-$(random)}"
+  "viewer-password=${DEMO_VIEWER_PASSWORD:-viewer}" "editor-password=${DEMO_EDITOR_PASSWORD:-editor}"
 
 echo "ensure-secrets: test user passwords: kubectl -n $namespace get secret spring-person-api-demo-users -o jsonpath='{.data.editor-password}' | base64 -d (or viewer-password)"

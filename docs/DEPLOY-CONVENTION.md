@@ -83,16 +83,18 @@ names in section 3.
   `keycloak-admin` (`username`, `password`), `<api>-oidc-client` (`client-secret`), and for test users
   `<api>-demo-users`.
 - The repo that needs a Secret creates it. A Skaffold `before` deploy hook (`deploy/ensure-secrets.sh`, in every
-  profile) creates each missing Secret with random values in the deploy's namespace and context
+  profile) creates each missing Secret in the deploy's namespace and context
   (`$SKAFFOLD_NAMESPACES`, `$SKAFFOLD_KUBE_CONTEXT`, else the context's namespace). It never changes an existing one,
   since PostgreSQL keeps the password of its first start. So `skaffold run` needs no step before it, and no secret
-  value is in git.
+  value is in git. Real secrets (database, Keycloak admin, client secret) are random; test user passwords default to
+  the user names, as in Docker Compose, and are set through environment variables on the first deploy when the
+  cluster is publicly reachable.
 - An environment that manages its own Secrets (an operator, a vault) creates them before the first deploy; the hook
   then leaves them alone.
 - Values the realm needs (the client secret, test user passwords) reach Keycloak's import as environment variables
   from those Secrets (`${ENV}` placeholders in the realm file). Read them with `kubectl get secret ... -o jsonpath`.
-- The realm file (`deploy/base/realm.json`) holds no host and no secret value. Only Docker Compose (local
-  development) keeps fixed demo values.
+- The realm file (`deploy/base/realm.json`) holds no host and no secret value. Fixed demo values live only in Docker
+  Compose and in the hook's test user defaults.
 
 ## 6. One public host, no host in any file
 The browser reaches the whole application on the UI's host:

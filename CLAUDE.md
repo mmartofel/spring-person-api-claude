@@ -86,6 +86,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Never edit a migration that has been applied; every change is one new file `V<n>__<description>.sql`.
 - Every entity change ships with its migration in the same commit.
 - A new NOT NULL column gets a `DEFAULT` or a backfill, so existing rows keep working.
+- `db/demo/afterMigrate__seed_fake_data.sql` is a Flyway callback (not a migration) that seeds an empty database; it is on by default (`spring.flyway.locations`). Update it in the same commit as any schema change and keep `DemoDataIT` green. `PersonApplicationIT` runs without it.
 - Name constraints and indexes explicitly (`pk_`, `uk_`, `ck_`, `fk_`, `ix_`); index every foreign key column; `uk_person_email` is referenced by `Person.UNIQUE_EMAIL` for the `unique` error code.
 
 ## Implementation notes (Spring Boot 4 / Spring Data 4 / springdoc 3)

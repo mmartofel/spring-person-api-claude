@@ -12,6 +12,10 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+  flyway:
+    # db/demo seeds fake data into an empty database (README "Demo data"); set
+    # SPRING_FLYWAY_LOCATIONS=classpath:db/migration to switch it off.
+    locations: classpath:db/migration,classpath:db/demo
   data:
     web:
       pageable:

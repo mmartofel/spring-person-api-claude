@@ -36,3 +36,7 @@ Patterns learned from user corrections. Review at session start; add a rule afte
 ## Prove a health check can fail
 - **Mistake:** A Compose healthcheck written as `["CMD", "bash", "-c", "<script>"]` was split on spaces by Podman, so it ran `bash -c exec` and reported Keycloak healthy before it started. A new PostgreSQL startup probe with a 5 s delay made the API connect before the database was ready, and the API restarted once.
 - **Rule:** Write shell healthchecks as `["CMD-SHELL", "<script>"]`. After adding any probe or healthcheck, check its log shows failures before the service is up (`podman inspect --format '{{json .State.Health}}'`, Warning events), and check that dependent pods show no restarts.
+
+## Read the search output before concluding "nothing exists"
+- **Mistake:** A `grep --include=*.sql` in zsh failed with `no matches found` (unquoted glob), so the search ran on nothing. I told the user there was no example data and planned to write new data, while `dev/seed-fake-data.sql` and its README section already existed.
+- **Rule:** Quote glob arguments in zsh (`--include='*.sql'`). Treat a shell error in a search as "unknown", not "none". Before claiming something does not exist, check `git ls-files` and the README.

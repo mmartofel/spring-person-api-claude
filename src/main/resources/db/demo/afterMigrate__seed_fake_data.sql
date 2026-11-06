@@ -1,8 +1,13 @@
--- Fake data for UI performance testing: 250 persons and 2000 tasks.
+-- Fake data for UI testing: 250 persons and 2000 tasks, always the same.
+-- A Flyway afterMigrate callback: it runs after every migrate (each startup) in one transaction, and inserts only when
+-- both tables are empty, so it never touches existing data. Enabled by the location classpath:db/demo in
+-- spring.flyway.locations (README "Demo data").
 -- Seed rows are marked by the e-mail domain 'seed.example.com' and the task title suffix ' #seed'.
 -- Cleanup: DELETE FROM task WHERE title LIKE '% #seed'; DELETE FROM person WHERE email LIKE '%@seed.example.com';
-BEGIN;
 SELECT setseed(0.42);
+
+CREATE TEMP TABLE seed_run ON COMMIT DROP AS
+SELECT NOT EXISTS (SELECT 1 FROM person) AND NOT EXISTS (SELECT 1 FROM task) AS empty;
 
 CREATE TEMP TABLE seed_person ON COMMIT DROP AS
 WITH n AS (
@@ -15,6 +20,7 @@ WITH n AS (
                   'Papadopoulos','Kim','Nguyen','Silva','Santos','Konstantinopoulou-Montgomery'])[1 + floor(random() * 25)::int] AS last_name,
            random() AS r1, random() AS r2, random() AS r3, random() AS r4
     FROM generate_series(1, 250) AS i
+    WHERE (SELECT empty FROM seed_run)
 )
 SELECT i, first_name, last_name, r1, r2, r3, r4,
        (ARRAY['PL','DE','FR','IT','ES','CZ','SE','DK','IE','NL','GR','US','GB'])[1 + floor(r1 * 13)::int] AS country_code,
@@ -64,6 +70,5 @@ SELECT left((ARRAY['Prepare','Review','Refactor','Deploy','Migrate','Analyze','D
        least(now(), created + random() * interval '20 days'),
        0
 FROM (SELECT i, random() AS r, random() AS a, now() - random() * interval '365 days' AS created
-      FROM generate_series(1, 2000) AS i) AS t;
-
-COMMIT;
+      FROM generate_series(1, 2000) AS i
+      WHERE (SELECT empty FROM seed_run)) AS t;

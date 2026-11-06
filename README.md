@@ -9,9 +9,10 @@ https://github.com/piomin/claude-ai-spring-boot
 
 Kudos to Piotr Minkowski, the great plugin author, and to Claude AI for the amazing AI coding assistance.
 
-Version: **3.6.1**
+Version: **3.7.0**
 
 ## Changelog
+- **3.7.0**: A new, empty database gets demo data at startup, so a fresh deploy to Docker Compose, Kubernetes or OpenShift opens the UI with records instead of an empty list: the former `dev/seed-fake-data.sql` (250 persons, 2000 tasks) is now the Flyway callback `src/main/resources/db/demo/afterMigrate__seed_fake_data.sql`. It inserts only when both `person` and `task` are empty, so existing data is never touched; running it again no longer adds another set. Switch it off with `SPRING_FLYWAY_LOCATIONS=classpath:db/migration`. The API and contract are unchanged.
 - **3.6.1**: In Kubernetes and OpenShift, the test users `viewer` and `editor` get the same passwords as in Docker Compose (`viewer`, `editor`) instead of random ones, so every environment signs in the same way. A publicly reachable cluster should choose its own on the first deploy: `DEMO_EDITOR_PASSWORD=... DEMO_VIEWER_PASSWORD=... skaffold run ...`. Database, Keycloak admin and client secret stay random. An existing `spring-person-api-demo-users` Secret is kept; to switch, delete it, run `skaffold run` again and restart Keycloak (`kubectl rollout restart deploy/keycloak`). The API and contract are unchanged.
 - **3.6.0**: Deployment follows [docs/DEPLOY-CONVENTION.md](docs/DEPLOY-CONVENTION.md), shared with the UI repo: `deploy/base` plus overlays `local`, `openshift` and `kubernetes`, with the same Skaffold profiles. Nothing in git names a cluster, host, registry or namespace, and no secret value is in the manifests: `deploy/ensure-secrets.sh` (a Skaffold before-deploy hook) creates the missing Secrets with random values. Keycloak has no Route of its own: browsers reach the realm through the UI's host, and the `person-ui` client accepts any host it is served on (`rootUrl ${authBaseUrl}`, relative redirects). Topology labels, resources and arrows are in the manifests. Migration: `k8s/realm.json` moved to `deploy/base/realm.json`; client secret and demo passwords are `${ENV}` placeholders (Docker Compose sets the old demo values). The API and contract are unchanged.
 - **3.5.2**: Every component has health checks. In Kubernetes and OpenShift, PostgreSQL (`pg_isready`) and Keycloak (`/health/started`, `/health/ready`, `/health/live` on port 9000) have startup, readiness and liveness probes, like the API. In Docker Compose, both services have a healthcheck, and `docker compose up -d --wait` returns once they are usable. The API and contract are unchanged.
@@ -204,17 +205,16 @@ Databases created by Hibernate before 3.2.0 have no Flyway history, and Flyway r
 - **Docker Compose:** `docker compose down -v && docker compose up -d`. The `-v` removes the PostgreSQL volume.
 - **Kubernetes / OpenShift:** the data lives in the PersistentVolumeClaim `postgres` and survives redeploys. To start with an empty database, run `kubectl scale deploy/postgres --replicas=0`, then `kubectl delete pvc postgres`, then `skaffold run` again with the same profile.
 
-### Fake data for UI testing
-`dev/seed-fake-data.sql` adds 250 persons and 2000 tasks (about 10% unassigned) to check how a UI handles larger lists. It always generates the same data, adds it next to existing rows, and adds another full set each time it runs. Run it after the app has started once, so Flyway has created the schema:
-```shell
-docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U persons -d persons < dev/seed-fake-data.sql
-kubectl exec -i deploy/postgres -- sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < dev/seed-fake-data.sql
-```
-Seed persons have e-mails at `seed.example.com` and seed task titles end with ` #seed`. To remove them, run in `psql`:
-```sql
-DELETE FROM task WHERE title LIKE '% #seed';
-DELETE FROM person WHERE email LIKE '%@seed.example.com';
-```
+### Demo data
+`src/main/resources/db/demo/afterMigrate__seed_fake_data.sql` fills a new database with 250 persons and 2000 tasks (about 10% unassigned), so a UI never starts empty and its lists can be checked at size. It is a Flyway `afterMigrate` callback: it runs at every startup, after the migrations, and inserts only when both `person` and `task` are empty. A database with any data is never touched. It always generates the same data, including long names and texts to check truncation and wrapping. This works the same in Docker Compose, Kubernetes and OpenShift, with no extra step.
+
+- **Switch it off** (e.g. a shared environment) with `SPRING_FLYWAY_LOCATIONS=classpath:db/migration`, as an environment variable of the API (in a cluster, a patch of the `spring-person-api` Deployment in an environment overlay).
+- **Start over:** delete all rows and restart the API, which seeds again. Seed persons have e-mails at `seed.example.com` and seed task titles end with ` #seed`. To remove only them, run in `psql`:
+  ```sql
+  DELETE FROM task WHERE title LIKE '% #seed';
+  DELETE FROM person WHERE email LIKE '%@seed.example.com';
+  ```
+- The file is not a migration: when the schema changes, update it in the same commit, so it still inserts valid rows. The integration tests run without it (`PersonApplicationIT`), except `DemoDataIT`, which checks it.
 
 ## Connect a UI
 A web UI made from [crud-ui-blueprint](https://github.com/mmartofel/crud-ui-blueprint) reads this section in its
